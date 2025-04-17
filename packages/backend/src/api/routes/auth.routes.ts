@@ -1,3 +1,4 @@
+// src/api/routes/auth.routes.ts
 import { Router } from 'express';
 import { AuthController } from '../controllers/auth.controller';
 import { 
@@ -9,10 +10,14 @@ import {
 } from '../validators/auth.validator';
 import { validate } from '../middlewares/validation.middleware';
 import { authenticate } from '../middlewares/auth.middleware';
+import { validateCsrfToken } from '../middlewares/csrf.middleware';
 import { auditLog, AuditActions, EntityTypes } from '../middlewares/audit.middleware';
 
 const router = Router();
 const authController = new AuthController();
+
+// CSRF token endpoint
+router.get('/csrf-token', authController.getCsrfToken);
 
 // Public routes
 router.post(

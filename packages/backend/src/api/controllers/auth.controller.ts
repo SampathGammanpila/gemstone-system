@@ -1,9 +1,11 @@
+// src/api/controllers/auth.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../../services/auth.service';
 import { UserService } from '../../services/user.service';
 import { logger } from '../../utils/logger';
 import { AppError } from '../middlewares/error.middleware';
 import { AuditActions, EntityTypes } from '../middlewares/audit.middleware';
+import { generateCsrfToken } from '../middlewares/csrf.middleware';
 
 export class AuthController {
   private authService: AuthService;
@@ -13,6 +15,30 @@ export class AuthController {
     this.authService = new AuthService();
     this.userService = new UserService();
   }
+
+  /**
+   * Get CSRF token
+   * @route GET /api/auth/csrf-token
+   */
+  public getCsrfToken = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { token, expires } = generateCsrfToken();
+      
+      res.status(200).json({
+        status: 'success',
+        data: {
+          token,
+          expires
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 
   /**
    * Register a new user

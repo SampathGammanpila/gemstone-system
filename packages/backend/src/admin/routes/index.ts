@@ -1,3 +1,4 @@
+// src/admin/routes/index.ts
 import { Router } from 'express';
 import { authenticate, authorize } from '../../api/middlewares/auth.middleware';
 import { dashboardRoutes } from './dashboard.routes';

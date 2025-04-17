@@ -13,6 +13,8 @@ interface AuditLogEntry {
   details?: any;
   ip_address: string;
   user_agent?: string;
+  status_code: number;
+  timestamp: Date;
 }
 
 /**
@@ -29,18 +31,12 @@ export const auditLog = (
   getEntityId?: (req: Request) => string | undefined,
   getDetails?: (req: Request, res: Response) => any
 ) => {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    // Store original end function
-    const originalEnd = res.end;
+  return (req: Request, res: Response, next: NextFunction): void => {
+    // Store original end method reference
+    const originalSend = res.send;
     
-    // Override end function to log after response is sent
-    res.end = function (this: Response, ...args: any[]): any {
-      // Restore original end function
-      res.end = originalEnd;
-      
-      // Call original end function
-      const result = originalEnd.apply(this, args);
-      
+    // Override send method
+    res.send = function(...args) {
       // Create audit log entry
       try {
         const auditEntry: AuditLogEntry = {
@@ -50,7 +46,9 @@ export const auditLog = (
           entity_id: getEntityId ? getEntityId(req) : undefined,
           details: getDetails ? getDetails(req, res) : undefined,
           ip_address: req.ip || req.socket.remoteAddress || '',
-          user_agent: req.headers['user-agent']
+          user_agent: req.headers['user-agent'] as string,
+          status_code: res.statusCode,
+          timestamp: new Date()
         };
         
         // Log audit entry to database
@@ -66,7 +64,8 @@ export const auditLog = (
         logger.error('Error in audit logging', error);
       }
       
-      return result;
+      // Call original send
+      return originalSend.apply(res, args);
     };
     
     next();

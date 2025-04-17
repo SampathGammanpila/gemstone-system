@@ -1,4 +1,5 @@
-import { Knex } from 'knex';
+import knex from 'knex';
+import type { Knex } from 'knex';
 import { db } from '../index';
 
 /**
@@ -122,7 +123,7 @@ export abstract class BaseRepository<T, I = string> {
       .count({ count: '*' })
       .first();
     
-    return result?.count > 0;
+    return result !== undefined && Number(result.count) > 0;
   }
 
   /**

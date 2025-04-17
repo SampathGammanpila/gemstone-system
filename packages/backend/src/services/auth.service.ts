@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 import { config } from '../config/environment';
 import { UserRepository } from '../db/repositories/user.repository';
@@ -127,7 +127,7 @@ export class AuthService {
       // Update user
       const updatedUser = await this.userRepository.update(user.id, {
         is_email_verified: true,
-        verification_token: null
+        verification_token: undefined
       });
       
       if (!updatedUser) {
@@ -197,8 +197,8 @@ export class AuthService {
       // Update user
       await this.userRepository.update(user.id, {
         password: hashedPassword,
-        reset_token: null,
-        reset_token_expires: null
+        reset_token: undefined,
+        reset_token_expires: undefined
       });
     } catch (error) {
       if (error instanceof AppError) {
@@ -260,11 +260,8 @@ export class AuthService {
    * @returns JWT token
    */
   public generateToken(userId: string, roles: string[]): string {
-    return jwt.sign(
-      { userId, roles },
-      config.jwtSecret,
-      { expiresIn: config.jwtExpiry }
-    );
+    const payload = { userId, roles };
+    return jwt.sign(payload, config.jwtSecret, { expiresIn: config.jwtExpiry as any });
   }
 
   /**
@@ -275,11 +272,8 @@ export class AuthService {
   public generateRefreshToken(userId: string): string {
     // In a production environment, you would store refresh tokens in a database
     // and implement token rotation/invalidation logic
-    return jwt.sign(
-      { userId, type: 'refresh' },
-      config.jwtSecret,
-      { expiresIn: '7d' }
-    );
+    const payload = { userId, type: 'refresh' };
+    return jwt.sign(payload, config.jwtSecret, { expiresIn: '7d' as any });
   }
 
   /**

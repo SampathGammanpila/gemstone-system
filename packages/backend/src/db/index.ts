@@ -1,4 +1,5 @@
 import knex from 'knex';
+import { Knex } from 'knex'; // Add this import for types
 import { config } from '../config/environment';
 import { logger } from '../utils/logger';
 
@@ -22,9 +23,13 @@ export const initializeDatabase = async (): Promise<void> => {
       logger.info(`Database connection established in ${environment} environment`);
       
       // Check if migrations are needed
-      const pendingMigrations = await db.migrate.list();
-      if (pendingMigrations && pendingMigrations[1] && pendingMigrations[1].length > 0) {
-        logger.info(`${pendingMigrations[1].length} pending migrations found`);
+      try {
+        const pendingMigrations = await db.migrate.status();
+        if (pendingMigrations && typeof pendingMigrations === 'number' && pendingMigrations > 0) {
+          logger.info(`${pendingMigrations} pending migrations found`);
+        }
+      } catch (migrationError) {
+        logger.warn('Failed to check migration status:', migrationError);
       }
     }
   } catch (error) {
@@ -44,6 +49,6 @@ export const closeDatabase = async (): Promise<void> => {
 };
 
 // Export transaction helper function
-export const transaction = async <T>(callback: (trx: knex.Transaction) => Promise<T>): Promise<T> => {
+export const transaction = async <T>(callback: (trx: Knex.Transaction) => Promise<T>): Promise<T> => {
   return db.transaction(callback);
 };

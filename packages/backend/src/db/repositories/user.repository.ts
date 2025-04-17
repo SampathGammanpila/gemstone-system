@@ -73,14 +73,12 @@ export class UserRepository extends BaseRepository<User> {
   async hasRole(userId: string, roleName: string): Promise<boolean> {
     const result = await db('user_roles')
       .join('roles', 'user_roles.role_id', 'roles.id')
-      .where({
-        'user_roles.user_id': userId,
-        'roles.name': roleName,
-      })
+      .where('user_roles.user_id', userId)
+      .andWhere('roles.name', roleName)
       .count({ count: '*' })
       .first();
     
-    return result?.count > 0;
+    return result !== undefined && Number(result.count) > 0;
   }
 
   /**
@@ -96,7 +94,7 @@ export class UserRepository extends BaseRepository<User> {
       .select('permissions.name')
       .distinct();
     
-    return permissions.map(p => p.name);
+    return permissions.map((p: { name: string }) => p.name);
   }
 
   /**
@@ -150,7 +148,7 @@ export class UserRepository extends BaseRepository<User> {
    * @returns Promise with created user
    */
   async createUserWithRoles(userData: Partial<User>, roleIds: number[] = []): Promise<User> {
-    return db.transaction(async (trx) => {
+    return db.transaction(async (trx: any) => {
       // Insert user
       const [user] = await trx('users')
         .insert(userData)

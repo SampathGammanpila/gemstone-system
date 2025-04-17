@@ -6,7 +6,7 @@ import { logger } from '../utils/logger';
  * Email Service for sending emails
  */
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private transporter!: nodemailer.Transporter;
 
   constructor() {
     // In development, use ethereal.email for testing

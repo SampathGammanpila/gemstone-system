@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\gemprojects\\gem-new\\gemstone-system\\packages\\backend\\logs\\.7e0b5fbaaec32f3f04f0f8cbafc004f1ebebf684-audit.json",
+    "files": [
+        {
+            "date": 1744906851405,
+            "name": "C:\\gemprojects\\gem-new\\gemstone-system\\packages\\backend\\logs\\2025-04-17-app.log",
+            "hash": "e9a89fdc922bb9aee7f37f08bc145289a7110243fd8eae2ae63a9f8c814ab4b0"
+        }
+    ],
+    "hashType": "sha256"
+}

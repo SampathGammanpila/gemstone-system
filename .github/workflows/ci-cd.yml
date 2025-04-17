@@ -1,0 +1,110 @@
+name: Enhanced Gemstone System CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gemstone_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: packages/backend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: packages/backend
+        run: npm ci
+      
+      - name: Run linting
+        working-directory: packages/backend
+        run: npm run lint
+      
+      - name: Run tests
+        working-directory: packages/backend
+        run: npm run test
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/gemstone_test
+          NODE_ENV: test
+          JWT_SECRET: test_secret
+  
+  frontend-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: packages/frontend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: packages/frontend
+        run: npm ci
+      
+      - name: Run linting
+        working-directory: packages/frontend
+        run: npm run lint
+      
+      - name: Run tests
+        working-directory: packages/frontend
+        run: npm run test
+
+  build:
+    needs: [backend-tests, frontend-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Build backend
+        working-directory: packages/backend
+        run: |
+          npm ci
+          npm run build
+      
+      - name: Build frontend
+        working-directory: packages/frontend
+        run: |
+          npm ci
+          npm run build
+      
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: |
+            packages/backend/dist
+            packages/frontend/dist

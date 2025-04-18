@@ -1,21 +1,21 @@
-name: Enhanced Gemstone System CI/CD
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, development ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, development ]
 
 jobs:
-  backend-tests:
+  test:
+    name: Test
     runs-on: ubuntu-latest
-    
     services:
       postgres:
         image: postgres:14
         env:
-          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
           POSTGRES_DB: gemstone_test
         ports:
           - 5432:5432
@@ -24,87 +24,165 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    
+
     steps:
       - uses: actions/checkout@v3
       
-      - name: Set up Node.js
+      - name: Use Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '18.x'
           cache: 'npm'
-          cache-dependency-path: packages/backend/package-lock.json
-      
+          
       - name: Install dependencies
-        working-directory: packages/backend
-        run: npm ci
+        run: |
+          npm ci
+          npm --prefix packages/backend ci
+          npm --prefix packages/frontend ci
       
-      - name: Run linting
+      - name: Run backend tests
         working-directory: packages/backend
-        run: npm run lint
-      
-      - name: Run tests
-        working-directory: packages/backend
-        run: npm run test
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/gemstone_test
+          JWT_SECRET: test_secret_key
           NODE_ENV: test
-          JWT_SECRET: test_secret
-  
-  frontend-tests:
+        run: npm test
+        
+      - name: Run frontend tests
+        working-directory: packages/frontend
+        run: npm test
+
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v3
       
-      - name: Set up Node.js
+      - name: Use Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '18.x'
           cache: 'npm'
-          cache-dependency-path: packages/frontend/package-lock.json
-      
+          
       - name: Install dependencies
-        working-directory: packages/frontend
-        run: npm ci
+        run: |
+          npm ci
+          npm --prefix packages/backend ci
+          npm --prefix packages/frontend ci
       
-      - name: Run linting
+      - name: Lint backend
+        working-directory: packages/backend
+        run: npm run lint
+        
+      - name: Lint frontend
         working-directory: packages/frontend
         run: npm run lint
-      
-      - name: Run tests
-        working-directory: packages/frontend
-        run: npm run test
 
   build:
-    needs: [backend-tests, frontend-tests]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Build
     runs-on: ubuntu-latest
+    needs: [test, lint]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development')
     
     steps:
       - uses: actions/checkout@v3
       
-      - name: Set up Node.js
+      - name: Use Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '18.x'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix packages/backend ci
+          npm --prefix packages/frontend ci
       
       - name: Build backend
         working-directory: packages/backend
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
       
       - name: Build frontend
         working-directory: packages/frontend
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
       
-      - name: Archive production artifacts
+      - name: Upload backend artifact
         uses: actions/upload-artifact@v3
         with:
-          name: dist
-          path: |
-            packages/backend/dist
-            packages/frontend/dist
+          name: backend-build
+          path: packages/backend/dist
+      
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build
+          path: packages/frontend/dist
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/development'
+    
+    steps:
+      - name: Download backend artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-build
+          path: backend
+      
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-build
+          path: frontend
+      
+      # Replace with your actual deployment steps for staging
+      - name: Deploy to staging server
+        run: echo "Deploying to staging server"
+        # Example for AWS S3 deployment for frontend
+        # - name: Configure AWS credentials
+        #   uses: aws-actions/configure-aws-credentials@v1
+        #   with:
+        #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        #     aws-region: us-east-1
+        #
+        # - name: Deploy frontend to S3
+        #   run: aws s3 sync ./frontend s3://staging-bucket-name/ --delete
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+      - name: Download backend artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-build
+          path: backend
+      
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-build
+          path: frontend
+      
+      # Replace with your actual deployment steps for production
+      - name: Deploy to production server
+        run: echo "Deploying to production server"
+        # Example for AWS deployment
+        # - name: Configure AWS credentials
+        #   uses: aws-actions/configure-aws-credentials@v1
+        #   with:
+        #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        #     aws-region: us-east-1
+        #
+        # - name: Deploy frontend to S3
+        #   run: aws s3 sync ./frontend s3://production-bucket-name/ --delete

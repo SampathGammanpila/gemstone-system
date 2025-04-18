@@ -1,0 +1,173 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom admin styles */
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+  }
+
+  h1 {
+    @apply text-2xl font-bold mb-4;
+  }
+
+  h2 {
+    @apply text-xl font-bold mb-3;
+  }
+
+  h3 {
+    @apply text-lg font-bold mb-2;
+  }
+
+  h4 {
+    @apply text-base font-semibold mb-2;
+  }
+
+  a {
+    @apply text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300;
+  }
+
+  table {
+    @apply w-full text-sm text-left text-gray-500 dark:text-gray-400;
+  }
+
+  th {
+    @apply px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400 uppercase tracking-wider font-medium text-xs;
+  }
+
+  td {
+    @apply px-6 py-4 whitespace-nowrap;
+  }
+
+  tr {
+    @apply border-b dark:border-gray-700;
+  }
+
+  tr:hover {
+    @apply bg-gray-50 dark:bg-gray-800;
+  }
+}
+
+@layer components {
+  /* Admin specific components */
+  .admin-btn {
+    @apply inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .admin-btn-primary {
+    @apply admin-btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 dark:bg-primary-700 dark:hover:bg-primary-800;
+  }
+
+  .admin-btn-secondary {
+    @apply admin-btn bg-secondary-100 text-secondary-700 hover:bg-secondary-200 focus:ring-secondary-500 dark:bg-secondary-700 dark:text-secondary-100 dark:hover:bg-secondary-600;
+  }
+
+  .admin-btn-danger {
+    @apply admin-btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 dark:bg-red-700 dark:hover:bg-red-800;
+  }
+
+  .admin-btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .admin-btn-lg {
+    @apply px-5 py-2.5 text-base;
+  }
+
+  .admin-card {
+    @apply bg-white dark:bg-gray-800 shadow-card hover:shadow-card-hover transition-shadow rounded-lg overflow-hidden;
+  }
+
+  .admin-card-header {
+    @apply px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700;
+  }
+
+  .admin-card-body {
+    @apply p-6;
+  }
+
+  .admin-card-footer {
+    @apply px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700;
+  }
+
+  .admin-form-group {
+    @apply mb-4;
+  }
+
+  .admin-label {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
+  }
+
+  .admin-input {
+    @apply block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm;
+  }
+
+  .admin-select {
+    @apply block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm;
+  }
+
+  .admin-checkbox {
+    @apply h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700;
+  }
+
+  .admin-radio {
+    @apply h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700;
+  }
+
+  .admin-error {
+    @apply mt-1 text-sm text-red-600 dark:text-red-400;
+  }
+
+  .admin-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .admin-badge-success {
+    @apply admin-badge bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300;
+  }
+
+  .admin-badge-warning {
+    @apply admin-badge bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300;
+  }
+
+  .admin-badge-danger {
+    @apply admin-badge bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300;
+  }
+
+  .admin-badge-info {
+    @apply admin-badge bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300;
+  }
+
+  .admin-badge-neutral {
+    @apply admin-badge bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300;
+  }
+
+  .admin-table {
+    @apply min-w-full divide-y divide-gray-200 dark:divide-gray-700;
+  }
+
+  .admin-table-container {
+    @apply overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700;
+  }
+
+  .admin-pagination {
+    @apply flex items-center justify-between border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 sm:px-6;
+  }
+
+  .admin-pagination-button {
+    @apply relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600;
+  }
+
+  .admin-pagination-button-active {
+    @apply admin-pagination-button bg-primary-50 text-primary-600 dark:bg-primary-900 dark:text-primary-300;
+  }
+
+  .admin-pagination-button-disabled {
+    @apply admin-pagination-button opacity-50 cursor-not-allowed;
+  }
+}

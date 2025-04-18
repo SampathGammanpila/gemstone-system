@@ -1,0 +1,344 @@
+<!-- Admin Dashboard -->
+<div class="space-y-6">
+    <!-- Stats -->
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <!-- Total Users -->
+      <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0 bg-primary-100 dark:bg-primary-900 rounded-md p-3">
+              <svg class="h-6 w-6 text-primary-600 dark:text-primary-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                  Total Users
+                </dt>
+                <dd>
+                  <div class="text-lg font-medium text-gray-900 dark:text-white">
+                    <%= stats.totalUsers || 0 %>
+                  </div>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 px-5 py-3">
+          <div class="text-sm">
+            <a href="/admin/users" class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-900 dark:hover:text-primary-300">View all users</a>
+          </div>
+        </div>
+      </div>
+  
+      <!-- Total Gemstones -->
+      <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0 bg-blue-100 dark:bg-blue-900 rounded-md p-3">
+              <svg class="h-6 w-6 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                  Total Gemstones
+                </dt>
+                <dd>
+                  <div class="text-lg font-medium text-gray-900 dark:text-white">
+                    <%= stats.totalGemstones || 0 %>
+                  </div>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 px-5 py-3">
+          <div class="text-sm">
+            <a href="/admin/gemstones" class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-900 dark:hover:text-primary-300">View all gemstones</a>
+          </div>
+        </div>
+      </div>
+  
+      <!-- Professionals -->
+      <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0 bg-green-100 dark:bg-green-900 rounded-md p-3">
+              <svg class="h-6 w-6 text-green-600 dark:text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                  Professionals
+                </dt>
+                <dd>
+                  <div class="text-lg font-medium text-gray-900 dark:text-white">
+                    <%= stats.totalProfessionals || 0 %>
+                  </div>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 px-5 py-3">
+          <div class="text-sm">
+            <a href="/admin/professionals" class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-900 dark:hover:text-primary-300">View all professionals</a>
+          </div>
+        </div>
+      </div>
+  
+      <!-- Pending Verifications -->
+      <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0 bg-yellow-100 dark:bg-yellow-900 rounded-md p-3">
+              <svg class="h-6 w-6 text-yellow-600 dark:text-yellow-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                  Pending Verifications
+                </dt>
+                <dd>
+                  <div class="text-lg font-medium text-gray-900 dark:text-white">
+                    <%= stats.pendingVerifications || 0 %>
+                  </div>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 px-5 py-3">
+          <div class="text-sm">
+            <a href="/admin/professionals/pending" class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-900 dark:hover:text-primary-300">View pending verifications</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  
+    <!-- Charts & Activity -->
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <!-- User Registration Chart -->
+      <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">User Registrations</h3>
+        </div>
+        <div class="p-5">
+          <div class="h-64">
+            <canvas id="userRegistrationsChart"></canvas>
+          </div>
+        </div>
+      </div>
+  
+      <!-- Recent Activity -->
+      <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Recent Activity</h3>
+        </div>
+        <div class="px-5 py-5 h-64 overflow-y-auto">
+          <% if (activity && activity.length > 0) { %>
+            <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+              <% activity.forEach(function(item) { %>
+                <li class="py-4">
+                  <div class="flex items-center space-x-4">
+                    <div class="flex-shrink-0">
+                      <% if (item.type === 'user') { %>
+                        <svg class="h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      <% } else if (item.type === 'gemstone') { %>
+                        <svg class="h-5 w-5 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                      <% } else if (item.type === 'professional') { %>
+                        <svg class="h-5 w-5 text-purple-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      <% } else { %>
+                        <svg class="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                      <% } %>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        <%= item.message %>
+                      </p>
+                      <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
+                        <%= item.user %> • <%= item.time %>
+                      </p>
+                    </div>
+                    <div>
+                      <a href="<%= item.link %>" class="inline-flex items-center shadow-sm px-2.5 py-0.5 border border-gray-300 dark:border-gray-600 text-sm leading-5 font-medium rounded-full text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                        View
+                      </a>
+                    </div>
+                  </div>
+                </li>
+              <% }); %>
+            </ul>
+          <% } else { %>
+            <div class="text-center py-4">
+              <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No recent activity</h3>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Activity will appear here as users interact with the system.
+              </p>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  
+    <!-- Pending Items -->
+    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
+      <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Pending Approval Items</h3>
+      </div>
+      <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+        <% if (pendingItems && pendingItems.length > 0) { %>
+          <% pendingItems.forEach(function(item) { %>
+            <li>
+              <a href="<%= item.link %>" class="block hover:bg-gray-50 dark:hover:bg-gray-700">
+                <div class="px-4 py-4 sm:px-6">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                      <div class="flex-shrink-0">
+                        <% if (item.type === 'professional') { %>
+                          <div class="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
+                            <svg class="h-6 w-6 text-purple-600 dark:text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                        <% } else if (item.type === 'gemstone') { %>
+                          <div class="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                            <svg class="h-6 w-6 text-green-600 dark:text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                          </div>
+                        <% } else if (item.type === 'rough-stone') { %>
+                          <div class="h-10 w-10 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center">
+                            <svg class="h-6 w-6 text-yellow-600 dark:text-yellow-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+                            </svg>
+                          </div>
+                        <% } %>
+                      </div>
+                      <div class="ml-4">
+                        <div class="text-sm font-medium text-gray-900 dark:text-white">
+                          <%= item.name %>
+                        </div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                          <%= item.type %> • Submitted by <%= item.submittedBy %>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex items-center">
+                      <div class="ml-2 flex-shrink-0 flex">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
+                          Pending
+                        </span>
+                      </div>
+                      <div class="ml-4 text-sm text-gray-500 dark:text-gray-400">
+                        <%= item.submittedAt %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </a>
+            </li>
+          <% }); %>
+        <% } else { %>
+          <li class="px-4 py-5 sm:px-6">
+            <div class="text-center">
+              <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No pending items</h3>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                All items have been reviewed and approved.
+              </p>
+            </div>
+          </li>
+        <% } %>
+      </ul>
+    </div>
+  </div>
+  
+  <!-- Chart Initialization Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Sample data for the user registrations chart
+      const ctx = document.getElementById('userRegistrationsChart').getContext('2d');
+      
+      // Define colors for both light and dark modes
+      const isDarkMode = document.documentElement.classList.contains('dark');
+      const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+      const textColor = isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)';
+      
+      // Data should be populated by the server
+      const data = {
+        labels: <%- JSON.stringify(chartData ? chartData.labels : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']) %>,
+        datasets: [
+          {
+            label: 'Users',
+            backgroundColor: 'rgba(99, 102, 241, 0.2)',
+            borderColor: 'rgba(99, 102, 241, 1)',
+            data: <%- JSON.stringify(chartData ? chartData.users : [12, 19, 15, 20, 25, 30]) %>,
+          },
+          {
+            label: 'Professionals',
+            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+            borderColor: 'rgba(16, 185, 129, 1)',
+            data: <%- JSON.stringify(chartData ? chartData.professionals : [5, 8, 6, 10, 12, 15]) %>,
+          }
+        ]
+      };
+      
+      const config = {
+        type: 'line',
+        data: data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              grid: {
+                color: gridColor
+              },
+              ticks: {
+                color: textColor
+              }
+            },
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: gridColor
+              },
+              ticks: {
+                color: textColor
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: textColor
+              }
+            }
+          }
+        }
+      };
+      
+      new Chart(ctx, config);
+    });
+  </script>

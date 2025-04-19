@@ -5,7 +5,7 @@ const router = Router();
 
 // GET /admin/gemstones
 router.get('/', (req, res) => {
-  res.render('admin/gemstones/list', {
+  res.render('gemstones/list', {
     title: 'Gemstone Management',
     layout: 'layouts/main',
     activeLink: 'gemstones'
@@ -14,7 +14,7 @@ router.get('/', (req, res) => {
 
 // GET /admin/gemstones/approval
 router.get('/approval', (req, res) => {
-  res.render('admin/gemstones/approval', {
+  res.render('gemstones/approval', {
     title: 'Gemstone Approval',
     layout: 'layouts/main',
     activeLink: 'gemstones'
@@ -23,7 +23,7 @@ router.get('/approval', (req, res) => {
 
 // GET /admin/gemstones/:id
 router.get('/:id', (req, res) => {
-  res.render('admin/gemstones/details', {
+  res.render('gemstones/details', {
     title: 'Gemstone Details',
     layout: 'layouts/main',
     activeLink: 'gemstones',

@@ -5,7 +5,7 @@ const router = Router();
 
 // GET /admin/rough-stones
 router.get('/', (req, res) => {
-  res.render('admin/rough-stones/list', {
+  res.render('rough-stones/list', {
     title: 'Rough Stone Management',
     layout: 'layouts/main',
     activeLink: 'rough-stones'
@@ -14,7 +14,7 @@ router.get('/', (req, res) => {
 
 // GET /admin/rough-stones/approval
 router.get('/approval', (req, res) => {
-  res.render('admin/rough-stones/approval', {
+  res.render('rough-stones/approval', {
     title: 'Rough Stone Approval',
     layout: 'layouts/main',
     activeLink: 'rough-stones'
@@ -23,7 +23,7 @@ router.get('/approval', (req, res) => {
 
 // GET /admin/rough-stones/:id
 router.get('/:id', (req, res) => {
-  res.render('admin/rough-stones/details', {
+  res.render('rough-stones/details', {
     title: 'Rough Stone Details',
     layout: 'layouts/main',
     activeLink: 'rough-stones',

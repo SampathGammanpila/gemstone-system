@@ -8,12 +8,8 @@ const router = Router();
  * @desc    Admin dashboard
  * @access  Private (Admin)
  */
-router.get('/', (req, res) => {
-  res.render('admin/dashboard', {
-    title: 'Admin Dashboard',
-    layout: 'layouts/main',
-    activeLink: 'dashboard'
-  });
+router.get('/', (req, res, next) => {
+  dashboardController.index(req, res).catch(next);
 });
 
 /**
@@ -21,14 +17,18 @@ router.get('/', (req, res) => {
  * @desc    Activity log
  * @access  Private (Admin)
  */
-router.get('/activity-log', dashboardController.activityLog);
+router.get('/activity-log', (req, res, next) => {
+  dashboardController.activityLog(req, res).catch(next);
+});
 
 /**
  * @route   GET /admin/dashboard/statistics
  * @desc    System statistics
  * @access  Private (Admin)
  */
-router.get('/statistics', dashboardController.statistics);
+router.get('/statistics', (req, res, next) => {
+  dashboardController.statistics(req, res).catch(next);
+});
 
 export const dashboardRoutes = router;
 export default router;

@@ -5,7 +5,7 @@ const router = Router();
 
 // GET /admin/professionals
 router.get('/', (req, res) => {
-  res.render('admin/professionals/list', {
+  res.render('professionals/list', {
     title: 'Professional Management',
     layout: 'layouts/main',
     activeLink: 'professionals'
@@ -14,7 +14,7 @@ router.get('/', (req, res) => {
 
 // GET /admin/professionals/pending
 router.get('/pending', (req, res) => {
-  res.render('admin/professionals/pending', {
+  res.render('professionals/pending', {
     title: 'Pending Professionals',
     layout: 'layouts/main',
     activeLink: 'professionals'
@@ -23,7 +23,7 @@ router.get('/pending', (req, res) => {
 
 // GET /admin/professionals/:id
 router.get('/:id', (req, res) => {
-  res.render('admin/professionals/details', {
+  res.render('professionals/details', {
     title: 'Professional Details',
     layout: 'layouts/main',
     activeLink: 'professionals',
@@ -33,7 +33,7 @@ router.get('/:id', (req, res) => {
 
 // GET /admin/professionals/:id/documents
 router.get('/:id/documents', (req, res) => {
-  res.render('admin/professionals/documents', {
+  res.render('professionals/documents', {
     title: 'Professional Documents',
     layout: 'layouts/main',
     activeLink: 'professionals',

@@ -5,7 +5,7 @@ const router = Router();
 
 // GET /admin/users
 router.get('/', (req, res) => {
-  res.render('admin/users/list', {
+  res.render('users/list', {
     title: 'User Management',
     layout: 'layouts/main',
     activeLink: 'users'
@@ -14,7 +14,7 @@ router.get('/', (req, res) => {
 
 // GET /admin/users/create
 router.get('/create', (req, res) => {
-  res.render('admin/users/create', {
+  res.render('users/create', {
     title: 'Create User',
     layout: 'layouts/main',
     activeLink: 'users'
@@ -23,7 +23,7 @@ router.get('/create', (req, res) => {
 
 // GET /admin/users/:id/edit
 router.get('/:id/edit', (req, res) => {
-  res.render('admin/users/edit', {
+  res.render('users/edit', {
     title: 'Edit User',
     layout: 'layouts/main',
     activeLink: 'users',
@@ -33,7 +33,7 @@ router.get('/:id/edit', (req, res) => {
 
 // GET /admin/users/:id
 router.get('/:id', (req, res) => {
-  res.render('admin/users/details', {
+  res.render('users/details', {
     title: 'User Details',
     layout: 'layouts/main',
     activeLink: 'users',

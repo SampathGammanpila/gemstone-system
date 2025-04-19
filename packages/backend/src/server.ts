@@ -1,3 +1,4 @@
+// src/server.ts
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -6,6 +7,9 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { json, urlencoded } from 'body-parser';
+import session from 'express-session';
+import flash from 'connect-flash';
+import path from 'path';
 
 import apiRoutes from './api/routes';
 import adminRoutes from './admin/routes';
@@ -16,7 +20,9 @@ export const createServer = (): Application => {
   const app = express();
 
   // Security middleware
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: false // You might need this for admin panel functionality
+  }));
   app.use(cors({
     origin: config.security.cors.allowedOrigins.includes('*') 
       ? '*' 
@@ -40,6 +46,17 @@ export const createServer = (): Application => {
   app.use(json());
   app.use(urlencoded({ extended: true }));
   app.use(cookieParser());
+
+  // Session setup
+  app.use(session({
+    secret: config.sessions.secret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: config.sessions.cookie
+  }));
+  
+  // Flash messages middleware
+  app.use(flash());
 
   // Compression and logging
   app.use(compression());

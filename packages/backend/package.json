@@ -10,7 +10,9 @@
     "build:admin-css": "npx tailwindcss -i ./src/admin/styles/admin.css -o ./public/admin/css/admin.css",
     "lint": "eslint \"src/**/*.{js,ts}\" --fix && eslint . --ext .ts",
     "test": "jest",
-    "seed": "ts-node src/db/seeders/index.ts"
+    "seed": "ts-node src/db/seeders/index.ts",
+    "create-admin": "ts-node scripts/create-admin.ts",
+    "create-admin-secure": "ts-node scripts/create-admin.ts --delete-env"
   },
   "keywords": [
     "gemstone",
@@ -34,7 +36,7 @@
     "ejs": "^3.1.9",
     "express": "^5.1.0",
     "express-rate-limit": "^7.1.4",
-    "express-session": "^1.17.3",
+    "express-session": "^1.18.1",
     "express-validator": "^7.2.1",
     "handlebars": "^4.7.8",
     "helmet": "^8.1.0",
@@ -65,7 +67,7 @@
     "@types/ejs": "^3.1.4",
     "@types/express": "^5.0.1",
     "@types/express-rate-limit": "^5.1.3",
-    "@types/express-session": "^1.17.10",
+    "@types/express-session": "^1.18.1",
     "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/knex": "^0.15.2",

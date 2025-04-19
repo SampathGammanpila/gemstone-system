@@ -5,8 +5,8 @@ const router = Router();
 
 // GET /admin/system
 router.get('/', (req, res) => {
-  res.render('admin/system/settings', {
-    title: 'System Settings',
+  res.render('admin/system/index', {
+    title: 'System Management',
     layout: 'layouts/main',
     activeLink: 'system'
   });
@@ -39,4 +39,5 @@ router.get('/backup', (req, res) => {
   });
 });
 
-export const systemRoutes = router;
+export const systemManagementRoutes = router;
+export default router;

@@ -1,442 +1,315 @@
-// This file contains Swagger/OpenAPI documentation for the auth controller
-// The actual implementation is in auth.controller.ts
+import { Request, Response } from 'express';
+import authService from '../../services/auth.service';
+import { UserRegistrationRequest, UserLoginRequest } from '../../types/user.types';
+import { RefreshTokenRequest } from '../../types/auth.types';
 
-/**
- * @swagger
- * tags:
- *   name: Authentication
- *   description: Authentication management
- */
+export class AuthController {
+  /**
+   * Register a new user
+   */
+  async register(req: Request, res: Response): Promise<void> {
+    try {
+      const userData: UserRegistrationRequest = req.body;
+      
+      const user = await authService.register(userData);
+      
+      res.status(201).json({
+        success: true,
+        message: 'User registered successfully. Please check your email to verify your account.',
+        userId: user.id,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('already exists')) {
+        res.status(409).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        console.error('Registration error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'An error occurred during registration',
+        });
+      }
+    }
+  }
 
-/**
- * @swagger
- * /auth/register:
- *   post:
- *     summary: Register a new user
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RegisterRequest'
- *     responses:
- *       201:
- *         description: User registered successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: User registered successfully. Please check your email for verification link.
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                           format: uuid
- *                         email:
- *                           type: string
- *                           format: email
- *                         first_name:
- *                           type: string
- *                         last_name:
- *                           type: string
- *       400:
- *         $ref: '#/components/responses/ValidationError'
- *       409:
- *         description: User with this email already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
+  /**
+   * Login user
+   */
+  async login(req: Request, res: Response): Promise<void> {
+    try {
+      const loginData: UserLoginRequest = req.body;
+      
+      const authResponse = await authService.login(loginData);
+      
+      res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        data: authResponse,
+      });
+    } catch (error) {
+      res.status(401).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Invalid credentials',
+      });
+    }
+  }
 
-/**
- * @swagger
- * /auth/login:
- *   post:
- *     summary: Authenticate user and get tokens
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LoginRequest'
- *     responses:
- *       200:
- *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: Login successful
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                           format: uuid
- *                         email:
- *                           type: string
- *                           format: email
- *                         first_name:
- *                           type: string
- *                         last_name:
- *                           type: string
- *                         roles:
- *                           type: array
- *                           items:
- *                             type: string
- *                             example: customer
- *                     token:
- *                       type: string
- *                       description: JWT access token
- *                     refreshToken:
- *                       type: string
- *                       description: JWT refresh token
- *       400:
- *         $ref: '#/components/responses/ValidationError'
- *       401:
- *         description: Invalid email or password
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
+  /**
+   * Logout user
+   */
+  async logout(req: Request, res: Response): Promise<void> {
+    try {
+      // The auth middleware adds userId to the request
+      const userId = (req as any).userId;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+      
+      await authService.logout(userId);
+      
+      res.status(200).json({
+        success: true,
+        message: 'Logout successful',
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred during logout',
+      });
+    }
+  }
 
-/**
- * @swagger
- * /auth/verify-email/{token}:
- *   get:
- *     summary: Verify email address
- *     tags: [Authentication]
- *     parameters:
- *       - in: path
- *         name: token
- *         schema:
- *           type: string
- *         required: true
- *         description: Email verification token
- *     responses:
- *       200:
- *         description: Email verified successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: Email verified successfully
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                           format: uuid
- *                         email:
- *                           type: string
- *                           format: email
- *                         first_name:
- *                           type: string
- *                         last_name:
- *                           type: string
- *       400:
- *         description: Invalid or expired verification token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
+  /**
+   * Refresh access token
+   */
+  async refreshToken(req: Request, res: Response): Promise<void> {
+    try {
+      const refreshTokenRequest: RefreshTokenRequest = req.body;
+      
+      const authResponse = await authService.refreshToken(refreshTokenRequest);
+      
+      if (!authResponse) {
+        res.status(401).json({
+          success: false,
+          message: 'Invalid refresh token',
+        });
+        return;
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Token refreshed successfully',
+        data: authResponse,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while refreshing token',
+      });
+    }
+  }
 
-/**
- * @swagger
- * /auth/forgot-password:
- *   post:
- *     summary: Request password reset
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *     responses:
- *       200:
- *         description: Password reset email sent (always returns success for security)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: If an account with that email exists, a password reset link has been sent.
- *       400:
- *         $ref: '#/components/responses/ValidationError'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
+  /**
+   * Verify email with token
+   */
+  async verifyEmail(req: Request, res: Response): Promise<void> {
+    try {
+      const { token } = req.params;
+      
+      const verified = await authService.verifyEmail(token);
+      
+      if (!verified) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or expired verification token',
+        });
+        return;
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Email verified successfully',
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred during email verification',
+      });
+    }
+  }
 
-/**
- * @swagger
- * /auth/reset-password:
- *   post:
- *     summary: Reset password with token
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - token
- *               - password
- *             properties:
- *               token:
- *                 type: string
- *               password:
- *                 type: string
- *                 format: password
- *                 minLength: 8
- *     responses:
- *       200:
- *         description: Password reset successful
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: Password reset successful
- *       400:
- *         description: Invalid or expired reset token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
+  /**
+   * Request password reset
+   */
+  async requestPasswordReset(req: Request, res: Response): Promise<void> {
+    try {
+      const { email } = req.body;
+      
+      await authService.requestPasswordReset(email);
+      
+      // Always return success to prevent email enumeration
+      res.status(200).json({
+        success: true,
+        message: 'If the email exists, a password reset link has been sent',
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while processing your request',
+      });
+    }
+  }
 
-/**
- * @swagger
- * /auth/refresh-token:
- *   post:
- *     summary: Get new access token using refresh token
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - refresh_token
- *             properties:
- *               refresh_token:
- *                 type: string
- *     responses:
- *       200:
- *         description: Token refreshed successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: Token refreshed successfully
- *                 data:
- *                   type: object
- *                   properties:
- *                     token:
- *                       type: string
- *                       description: New JWT access token
- *                     refreshToken:
- *                       type: string
- *                       description: New JWT refresh token
- *       400:
- *         description: Refresh token is required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       401:
- *         description: Invalid or expired refresh token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
+  /**
+   * Reset password with token
+   */
+  async resetPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const { token, password } = req.body;
+      
+      const resetSuccess = await authService.resetPassword(token, password);
+      
+      if (!resetSuccess) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or expired password reset token',
+        });
+        return;
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Password reset successful',
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred during password reset',
+      });
+    }
+  }
 
-/**
- * @swagger
- * /auth/me:
- *   get:
- *     summary: Get current user information
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User information retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                           format: uuid
- *                         email:
- *                           type: string
- *                           format: email
- *                         first_name:
- *                           type: string
- *                         last_name:
- *                           type: string
- *                         phone:
- *                           type: string
- *                         profile_image_url:
- *                           type: string
- *                         roles:
- *                           type: array
- *                           items:
- *                             type: string
- *                             example: customer
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       404:
- *         $ref: '#/components/responses/NotFoundError'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
+  /**
+   * Change password (authenticated user)
+   */
+  async changePassword(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).userId;
+      const { currentPassword, newPassword } = req.body;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+      
+      const changeSuccess = await authService.changePassword(
+        userId,
+        currentPassword,
+        newPassword
+      );
+      
+      if (!changeSuccess) {
+        res.status(400).json({
+          success: false,
+          message: 'Password change failed',
+        });
+        return;
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Password changed successfully',
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('incorrect')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: 'An error occurred during password change',
+        });
+      }
+    }
+  }
 
-/**
- * @swagger
- * /auth/logout:
- *   post:
- *     summary: Logout user
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               refresh_token:
- *                 type: string
- *                 description: Optional refresh token to invalidate
- *     responses:
- *       200:
- *         description: Logged out successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: Logged out successfully
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
+  /**
+   * Get current user profile
+   */
+  async getCurrentUser(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).userId;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+      
+      const userProfile = await authService.getUserProfile(userId);
+      
+      if (!userProfile) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
+      }
+      
+      res.status(200).json({
+        success: true,
+        data: userProfile,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while fetching user profile',
+      });
+    }
+  }
+
+  /**
+   * Resend verification email
+   */
+  async resendVerificationEmail(req: Request, res: Response): Promise<void> {
+    try {
+      const { email } = req.body;
+      
+      await authService.resendVerificationEmail(email);
+      
+      // Always return success to prevent email enumeration
+      res.status(200).json({
+        success: true,
+        message: 'If the email exists and is not verified, a new verification email has been sent',
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Too many')) {
+        res.status(429).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: 'An error occurred while processing your request',
+        });
+      }
+    }
+  }
+}
+
+export default new AuthController();

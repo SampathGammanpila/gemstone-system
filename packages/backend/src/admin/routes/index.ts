@@ -1,43 +1,51 @@
-// src/admin/routes/index.ts
 import { Router } from 'express';
-import { authenticate, authorize } from '../../api/middlewares/auth.middleware';
 import { dashboardRoutes } from './dashboard.routes';
 import { userManagementRoutes } from './user.routes';
+import { professionalManagementRoutes } from './professional.routes';
 import { gemstoneManagementRoutes } from './gemstone.routes';
 import { roughStoneManagementRoutes } from './rough-stone.routes';
-import { professionalManagementRoutes } from './professional.routes';
 import { referenceDataManagementRoutes } from './reference-data.routes';
-import { systemRoutes } from './system.routes';
-import { logger } from '../../utils/logger';
+import { systemManagementRoutes } from './system.routes';
+import { adminAuthRoutes } from './auth.routes';
+import { authenticate } from '../middlewares/admin-auth.middleware';
+
+// Import express-session types to augment the session
+import 'express-session';
+
+// Declare module augmentation for TypeScript to recognize adminUser in session
+declare module 'express-session' {
+  interface Session {
+    adminUser?: {
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+    };
+    returnTo?: string;
+  }
+}
 
 const router = Router();
 
-// Admin panel home/login
+// Admin auth routes (login, logout, etc.) - public
+router.use('/auth', adminAuthRoutes);
+
+// Protected admin routes - require admin authentication
+router.use('/dashboard', authenticate, dashboardRoutes);
+router.use('/users', authenticate, userManagementRoutes);
+router.use('/professionals', authenticate, professionalManagementRoutes);
+router.use('/gemstones', authenticate, gemstoneManagementRoutes);
+router.use('/rough-stones', authenticate, roughStoneManagementRoutes);
+router.use('/reference-data', authenticate, referenceDataManagementRoutes);
+router.use('/system', authenticate, systemManagementRoutes);
+
+// Admin panel home - redirects to login or dashboard
 router.get('/', (req, res) => {
-  // Render admin login page
-  res.render('admin/auth/login', {
-    title: 'Admin Login',
-    layout: false
-  });
+  if (req.session && req.session.adminUser) {
+    res.redirect('/admin/dashboard');
+  } else {
+    res.redirect('/admin/auth/login');
+  }
 });
 
-// Protect all admin routes
-router.use(authenticate);
-router.use(authorize(['admin']));
-
-// Log admin requests
-router.use((req, res, next) => {
-  logger.debug(`Admin Request: ${req.method} ${req.path} by ${req.userId}`);
-  next();
-});
-
-// Mount admin routes
-router.use('/dashboard', dashboardRoutes);
-router.use('/users', userManagementRoutes);
-router.use('/gemstones', gemstoneManagementRoutes);
-router.use('/rough-stones', roughStoneManagementRoutes);
-router.use('/professionals', professionalManagementRoutes);
-router.use('/reference-data', referenceDataManagementRoutes);
-router.use('/system', systemRoutes);
-
-export const adminRoutes = router;
+export default router;

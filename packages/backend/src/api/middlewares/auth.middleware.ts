@@ -1,128 +1,109 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { config } from '../../config/environment';
-import { UserRepository } from '../../db/repositories/user.repository';
-import { logger } from '../../utils/logger';
-import { AppError } from './error.middleware';
+import { verifyAccessToken, extractTokenFromHeader } from '../../utils/jwtHelper';
 
-// Extend Express Request interface to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: any;
-      userId?: string;
-      roles?: string[];
-      permissions?: string[];
-    }
-  }
-}
-
-// JWT Authentication middleware
-export const authenticate = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+/**
+ * Authentication middleware
+ * Verifies the JWT token from the Authorization header
+ * and adds the decoded user info to the request object
+ */
+export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
   try {
     // Get token from Authorization header
-    const authHeader = req.headers.authorization;
+    const token = extractTokenFromHeader(req.headers.authorization);
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new AppError(401, 'Authentication required. Please log in.');
+    if (!token) {
+      res.status(401).json({
+        success: false,
+        message: 'Access token is required',
+      });
+      return;
     }
-    
-    const token = authHeader.split(' ')[1];
     
     // Verify token
-    const decoded = jwt.verify(token, config.jwtSecret) as any;
+    const verification = verifyAccessToken(token);
     
-    if (!decoded || !decoded.userId) {
-      throw new AppError(401, 'Invalid authentication token.');
+    if (!verification.isValid || !verification.payload) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token',
+      });
+      return;
     }
     
-    // Get user from database
-    const userRepository = new UserRepository();
-    const userData = await userRepository.getUserWithRoles(decoded.userId);
-    
-    if (!userData) {
-      throw new AppError(401, 'User not found or inactive.');
-    }
-    
-    if (!userData.user.is_active) {
-      throw new AppError(401, 'User account is deactivated.');
-    }
-    
-    // Get user permissions
-    const permissions = await userRepository.getUserPermissions(decoded.userId);
-    
-    // Attach user data to request
-    req.user = userData.user;
-    req.userId = userData.user.id;
-    req.roles = userData.roles.map(role => role.name);
-    req.permissions = permissions;
+    // Add user info to request
+    (req as any).userId = verification.payload.userId;
+    (req as any).email = verification.payload.email;
+    (req as any).roles = verification.payload.roles;
     
     next();
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
-      next(new AppError(401, 'Invalid token. Please log in again.'));
-    } else if (error instanceof jwt.TokenExpiredError) {
-      next(new AppError(401, 'Token expired. Please log in again.'));
-    } else {
-      next(error);
-    }
+    res.status(500).json({
+      success: false,
+      message: 'Authentication error',
+    });
   }
 };
 
-// Role-based authorization middleware
-export const authorize = (roles: string[] = []) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      next(new AppError(401, 'Authentication required'));
-      return;
-    }
+/**
+ * Optional authentication middleware
+ * Tries to verify the JWT token but continues even if not present
+ */
+export const optionalAuthenticate = (req: Request, res: Response, next: NextFunction): void => {
+  try {
+    // Get token from Authorization header
+    const token = extractTokenFromHeader(req.headers.authorization);
     
-    if (roles.length === 0) {
-      // No specific roles required
+    if (!token) {
+      // Continue without authentication
       next();
       return;
     }
     
-    // Check if user has any of the required roles
-    const hasRole = req.roles?.some(role => roles.includes(role));
+    // Verify token
+    const verification = verifyAccessToken(token);
     
-    if (!hasRole) {
-      next(new AppError(403, 'You do not have permission to access this resource'));
-      return;
+    if (verification.isValid && verification.payload) {
+      // Add user info to request
+      (req as any).userId = verification.payload.userId;
+      (req as any).email = verification.payload.email;
+      (req as any).roles = verification.payload.roles;
     }
     
     next();
-  };
+  } catch (error) {
+    // Continue without authentication on error
+    next();
+  }
 };
 
-// Permission-based authorization middleware
-export const requirePermission = (requiredPermissions: string[] = []) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      next(new AppError(401, 'Authentication required'));
-      return;
-    }
+/**
+ * Middleware to check if user is verified
+ * Must be used after authenticate middleware
+ */
+export const requireVerifiedEmail = (req: Request, res: Response, next: NextFunction): void => {
+  try {
+    // The auth middleware adds email to the request
+    const isVerified = (req as any).isEmailVerified;
     
-    if (requiredPermissions.length === 0) {
-      // No specific permissions required
-      next();
-      return;
-    }
-    
-    // Check if user has all required permissions
-    const hasPermissions = requiredPermissions.every(
-      permission => req.permissions?.includes(permission)
-    );
-    
-    if (!hasPermissions) {
-      next(new AppError(403, 'You do not have the required permissions to access this resource'));
+    if (!isVerified) {
+      res.status(403).json({
+        success: false,
+        message: 'Email verification required',
+      });
       return;
     }
     
     next();
-  };
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Authentication error',
+    });
+  }
+};
+
+export default {
+  authenticate,
+  optionalAuthenticate,
+  requireVerifiedEmail,
 };

@@ -1,44 +1,47 @@
 import { createServer } from './server';
-import { config } from './config/environment';
-import { logger } from './utils/logger';
+import { sequelize } from './db';
+import dotenv from 'dotenv';
 
-// Create and start server
+// Load environment variables
+dotenv.config();
+
+// Get port from environment or default to 3000
+const PORT = process.env.PORT || 3000;
+
+// Create Express server
+const app = createServer();
+
+// Start the server
 const startServer = async () => {
   try {
-    const app = await createServer();
+    // Test database connection
+    await sequelize.authenticate();
+    console.log('Database connection has been established successfully.');
     
-    const server = app.listen(config.port, () => {
-      logger.info(`Server running on port ${config.port} in ${config.nodeEnv} mode`);
-      logger.info(`Health check available at http://localhost:${config.port}/health`);
-      
-      if (config.nodeEnv === 'development') {
-        logger.info(`API available at http://localhost:${config.port}/api`);
-        logger.info(`Admin panel available at http://localhost:${config.port}/admin`);
-      }
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+      console.log(`- API: http://localhost:${PORT}/api`);
+      console.log(`- Admin Panel: http://localhost:${PORT}/admin`);
+      console.log(`- Environment: ${process.env.NODE_ENV || 'development'}`);
     });
-    
-    // Handle graceful shutdown
-    const shutdown = () => {
-      logger.info('Shutting down server...');
-      server.close(() => {
-        logger.info('Server closed');
-        process.exit(0);
-      });
-      
-      // Force close after 10 seconds
-      setTimeout(() => {
-        logger.error('Forcing server shutdown after timeout');
-        process.exit(1);
-      }, 10000);
-    };
-    
-    process.on('SIGTERM', shutdown);
-    process.on('SIGINT', shutdown);
-    
   } catch (error) {
-    logger.error('Failed to start server', error);
+    console.error('Unable to connect to the database or start server:', error);
     process.exit(1);
   }
 };
 
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// Start the server
 startServer();

@@ -1,377 +1,410 @@
-import bcrypt from 'bcrypt';
-import jwt, { SignOptions } from 'jsonwebtoken';
+import { User } from '../db/models/user.model';
+import userRepository from '../db/repositories/user.repository';
+import roleRepository from '../db/repositories/role.repository';
+import verificationRepository from '../db/repositories/verification.repository';
+import { UserRegistrationRequest, UserLoginRequest, UserStatus, VerificationType, UserPublicProfile, UserRole } from '../types/user.types';
+import { TokenPayload, AuthResponse, TokenVerificationResponse, RefreshTokenRequest } from '../types/auth.types';
+import { generateTokens, verifyAccessToken, verifyRefreshToken } from '../utils/jwtHelper';
+import { generateToken } from '../utils/tokenGenerator';
+import { comparePassword } from '../utils/encryption';
+import emailService from './email.service';
+import { Transaction } from 'sequelize';
+import { sequelize } from '../db';
 import crypto from 'crypto';
-import { config } from '../config/environment';
-import { UserRepository } from '../db/repositories/user.repository';
-import { AppError } from '../api/middlewares/error.middleware';
-import { logger } from '../utils/logger';
-import { EmailService } from './email.service';
-import { User, Role } from '../types/database-types';
+import config from '../config/auth';
 
 export class AuthService {
-  private userRepository: UserRepository;
-  private emailService: EmailService;
-
-  constructor() {
-    this.userRepository = new UserRepository();
-    this.emailService = new EmailService();
-  }
-
   /**
    * Register a new user
-   * @param userData - User data for registration
-   * @returns User object and verification token
    */
-  public async register(userData: Partial<User>): Promise<{ user: User; verificationToken: string }> {
+  async register(userData: UserRegistrationRequest): Promise<User> {
+    // Check if user already exists
+    const existingUser = await userRepository.findByEmail(userData.email);
+    if (existingUser) {
+      throw new Error('User with this email already exists');
+    }
+
+    // Create user with transaction
+    const transaction = await sequelize.transaction();
+    
     try {
-      // Hash password
-      const hashedPassword = await bcrypt.hash(
-        userData.password as string,
-        config.bcryptSaltRounds
+      // Create user
+      const user = await userRepository.createUser({
+        ...userData,
+        status: UserStatus.PENDING,
+        isEmailVerified: false,
+      }, transaction);
+
+      // Get customer role
+      const customerRole = await roleRepository.findByName(UserRole.CUSTOMER);
+      if (!customerRole) {
+        throw new Error('Customer role not found');
+      }
+
+      // Assign customer role to user
+      await userRepository.addRole(user.id, customerRole.id, transaction);
+
+      // Create verification token
+      const verification = await verificationRepository.createVerification(
+        user.id,
+        VerificationType.EMAIL_VERIFICATION,
+        72, // 72 hours expiry
+        transaction
       );
-      
-      // Generate verification token
-      const verificationToken = crypto.randomBytes(32).toString('hex');
-      
-      // Create user with customer role
-      const user = await this.userRepository.createUserWithRoles(
-        {
-          ...userData,
-          password: hashedPassword,
-          verification_token: verificationToken,
-          is_email_verified: false,
-          is_active: true
-        },
-        [1] // Default 'customer' role (ID: 1)
+
+      // Send verification email
+      await emailService.sendVerificationEmail(
+        user.email,
+        user.firstName,
+        verification.token
       );
-      
-      return { user, verificationToken };
+
+      await transaction.commit();
+      return user;
     } catch (error) {
-      logger.error('Registration failed', error);
-      throw new AppError(500, 'Registration failed');
+      await transaction.rollback();
+      throw error;
     }
   }
 
   /**
-   * Login user
-   * @param email - User email
-   * @param password - User password
-   * @returns User object and tokens
+   * Login a user
    */
-  public async login(email: string, password: string): Promise<{ 
-    user: User & { roles: string[] }; 
-    token: string; 
-    refreshToken: string;
-  }> {
+  async login(loginData: UserLoginRequest): Promise<AuthResponse> {
+    // Find user by email
+    const user = await userRepository.findByEmail(loginData.email);
+    if (!user) {
+      throw new Error('Invalid email or password');
+    }
+
+    // Check if user is active
+    if (user.status !== UserStatus.ACTIVE && user.status !== UserStatus.PENDING) {
+      throw new Error('Your account is not active. Please contact support.');
+    }
+
+    // Verify password
+    const isPasswordValid = await user.validatePassword(loginData.password);
+    if (!isPasswordValid) {
+      throw new Error('Invalid email or password');
+    }
+
+    // Get user with roles
+    const userWithRoles = await userRepository.findByIdWithRoles(user.id);
+    if (!userWithRoles) {
+      throw new Error('User data not found');
+    }
+
+    // Create token payload
+    const tokenPayload: TokenPayload = {
+      userId: user.id,
+      email: user.email,
+      roles: userWithRoles.roles?.map(role => role.name) || [],
+    };
+
+    // Generate tokens
+    const tokens = generateTokens(tokenPayload);
+
+    // Update refresh token in database
+    await userRepository.updateRefreshToken(user.id, tokens.refreshToken);
+
+    // Update last login time
+    await userRepository.updateLastLogin(user.id);
+
+    // Create user profile for response
+    const userProfile: UserPublicProfile = {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      profileImage: user.profileImage,
+      roles: userWithRoles.roles?.map(role => role.name) || [],
+      createdAt: user.createdAt,
+    };
+
+    return {
+      user: userProfile,
+      tokens,
+    };
+  }
+
+  /**
+   * Logout a user
+   */
+  async logout(userId: number): Promise<boolean> {
     try {
-      // Get user with roles
-      const userData = await this.userRepository.getUserWithRoles(email);
-      
-      if (!userData) {
-        throw new AppError(401, 'Invalid email or password');
-      }
-      
-      const { user, roles } = userData;
-      
-      // Check if user is active
-      if (!user.is_active) {
-        throw new AppError(401, 'Account is deactivated');
-      }
-      
-      // Check if password is correct
-      const isPasswordCorrect = await bcrypt.compare(password, user.password);
-      
-      if (!isPasswordCorrect) {
-        throw new AppError(401, 'Invalid email or password');
-      }
-      
-      // Update last login
-      await this.userRepository.updateLastLogin(user.id);
-      
-      // Generate tokens
-      const token = this.generateToken(user.id, roles.map(role => role.name));
-      const refreshToken = this.generateRefreshToken(user.id);
-      
-      return { 
-        user: { 
-          ...user, 
-          roles: roles.map(role => role.name) 
-        }, 
-        token, 
-        refreshToken 
-      };
+      // Clear refresh token
+      await userRepository.updateRefreshToken(userId, null);
+      return true;
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Login failed', error);
-      throw new AppError(500, 'Login failed');
+      console.error('Logout error:', error);
+      return false;
     }
   }
 
   /**
-   * Verify email address
-   * @param token - Verification token
-   * @returns Updated user object
+   * Refresh access token using refresh token
    */
-  public async verifyEmail(token: string): Promise<User> {
+  async refreshToken(refreshTokenRequest: RefreshTokenRequest): Promise<AuthResponse | null> {
+    const { refreshToken } = refreshTokenRequest;
+
+    // Verify refresh token
+    const verification = verifyRefreshToken(refreshToken);
+    if (!verification.isValid || !verification.payload) {
+      return null;
+    }
+
+    // Find user by token
+    const user = await userRepository.findByRefreshToken(refreshToken);
+    if (!user) {
+      return null;
+    }
+
+    // Get user with roles
+    const userWithRoles = await userRepository.findByIdWithRoles(user.id);
+    if (!userWithRoles) {
+      return null;
+    }
+
+    // Create token payload
+    const tokenPayload: TokenPayload = {
+      userId: user.id,
+      email: user.email,
+      roles: userWithRoles.roles?.map(role => role.name) || [],
+    };
+
+    // Generate new tokens
+    const tokens = generateTokens(tokenPayload);
+
+    // Update refresh token in database
+    await userRepository.updateRefreshToken(user.id, tokens.refreshToken);
+
+    // Create user profile for response
+    const userProfile: UserPublicProfile = {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      profileImage: user.profileImage,
+      roles: userWithRoles.roles?.map(role => role.name) || [],
+      createdAt: user.createdAt,
+    };
+
+    return {
+      user: userProfile,
+      tokens,
+    };
+  }
+
+  /**
+   * Verify email with token
+   */
+  async verifyEmail(token: string): Promise<boolean> {
+    // Find verification record
+    const verification = await verificationRepository.findByToken(token);
+    if (!verification || verification.type !== VerificationType.EMAIL_VERIFICATION) {
+      return false;
+    }
+
+    // Start transaction
+    const transaction = await sequelize.transaction();
+
     try {
-      // Find user by verification token
-      const user = await this.userRepository.findOneByField('verification_token', token);
-      
-      if (!user) {
-        throw new AppError(400, 'Invalid or expired verification token');
+      // Mark verification as used
+      await verificationRepository.markAsUsed(verification.id, transaction);
+
+      // Update user verification status
+      await userRepository.setEmailVerified(verification.userId, transaction);
+
+      // Set user status to active if it was pending
+      const user = await userRepository.findById(verification.userId);
+      if (user && user.status === UserStatus.PENDING) {
+        await userRepository.updateStatus(user.id, UserStatus.ACTIVE, transaction);
       }
-      
-      // Update user
-      const updatedUser = await this.userRepository.update(user.id, {
-        is_email_verified: true,
-        verification_token: undefined
-      });
-      
-      if (!updatedUser) {
-        throw new AppError(500, 'Failed to verify email');
-      }
-      
-      return updatedUser;
+
+      await transaction.commit();
+      return true;
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Email verification failed', error);
-      throw new AppError(500, 'Email verification failed');
+      await transaction.rollback();
+      return false;
     }
   }
 
   /**
-   * Generate password reset token
-   * @param userId - User ID
-   * @returns Reset token
+   * Request password reset
    */
-  public async generatePasswordResetToken(userId: string): Promise<string> {
-    try {
-      // Generate token
-      const resetToken = crypto.randomBytes(32).toString('hex');
-      
-      // Set token expiry (1 hour)
-      const resetTokenExpires = new Date();
-      resetTokenExpires.setHours(resetTokenExpires.getHours() + 1);
-      
-      // Update user
-      await this.userRepository.update(userId, {
-        reset_token: resetToken,
-        reset_token_expires: resetTokenExpires
-      });
-      
-      return resetToken;
-    } catch (error) {
-      logger.error('Failed to generate reset token', error);
-      throw new AppError(500, 'Failed to generate reset token');
+  async requestPasswordReset(email: string): Promise<boolean> {
+    // Find user by email
+    const user = await userRepository.findByEmail(email);
+    if (!user) {
+      // Don't reveal that the email doesn't exist
+      return true;
     }
+
+    // Generate token
+    const token = generateToken();
+    const expires = new Date();
+    expires.setHours(expires.getHours() + config.verification.passwordResetTokenExpiry);
+
+    // Save token to database
+    await userRepository.setPasswordResetToken(user.id, token, expires);
+
+    // Send password reset email
+    await emailService.sendPasswordResetEmail(
+      user.email,
+      user.firstName,
+      token
+    );
+
+    return true;
   }
 
   /**
-   * Reset password
-   * @param token - Reset token
-   * @param newPassword - New password
+   * Reset password with token
    */
-  public async resetPassword(token: string, newPassword: string): Promise<void> {
-    try {
-      // Find user by reset token
-      const user = await this.userRepository.findOneByField('reset_token', token);
-      
-      if (!user) {
-        throw new AppError(400, 'Invalid or expired reset token');
-      }
-      
-      // Check if token is expired
-      if (user.reset_token_expires && user.reset_token_expires < new Date()) {
-        throw new AppError(400, 'Reset token has expired');
-      }
-      
-      // Hash new password
-      const hashedPassword = await bcrypt.hash(newPassword, config.bcryptSaltRounds);
-      
-      // Update user
-      await this.userRepository.update(user.id, {
-        password: hashedPassword,
-        reset_token: undefined,
-        reset_token_expires: undefined
-      });
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Password reset failed', error);
-      throw new AppError(500, 'Password reset failed');
+  async resetPassword(token: string, newPassword: string): Promise<boolean> {
+    // Find user by reset token
+    const user = await userRepository.findByPasswordResetToken(token);
+    if (!user) {
+      return false;
     }
-  }
 
-  /**
-   * Change password
-   * @param userId - User ID
-   * @param currentPassword - Current password
-   * @param newPassword - New password
-   */
-  public async changePassword(
-    userId: string,
-    currentPassword: string,
-    newPassword: string
-  ): Promise<void> {
+    // Start transaction
+    const transaction = await sequelize.transaction();
+
     try {
-      // Get user
-      const user = await this.userRepository.findById(userId);
-      
-      if (!user) {
-        throw new AppError(404, 'User not found');
-      }
-      
-      // Verify current password
-      const isPasswordCorrect = await bcrypt.compare(currentPassword, user.password);
-      
-      if (!isPasswordCorrect) {
-        throw new AppError(400, 'Current password is incorrect');
-      }
-      
-      // Hash new password
-      const hashedPassword = await bcrypt.hash(newPassword, config.bcryptSaltRounds);
-      
-      // Update user
-      await this.userRepository.update(userId, {
-        password: hashedPassword
-      });
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Password change failed', error);
-      throw new AppError(500, 'Password change failed');
-    }
-  }
+      // Update user's password
+      await userRepository.updatePassword(user.id, newPassword, transaction);
 
-  /**
-   * Generate JWT token
-   * @param userId - User ID
-   * @param roles - User roles
-   * @returns JWT token
-   */
-  public generateToken(userId: string, roles: string[]): string {
-    const payload = { userId, roles };
-    return jwt.sign(payload, config.jwtSecret, { expiresIn: config.jwtExpiry as any });
-  }
+      // Invalidate all refresh tokens by setting to null
+      await userRepository.updateRefreshToken(user.id, null, transaction);
 
-  /**
-   * Generate refresh token
-   * @param userId - User ID
-   * @returns Refresh token
-   */
-  public generateRefreshToken(userId: string): string {
-    // In a production environment, you would store refresh tokens in a database
-    // and implement token rotation/invalidation logic
-    const payload = { userId, type: 'refresh' };
-    return jwt.sign(payload, config.jwtSecret, { expiresIn: '7d' as any });
-  }
-
-  /**
-   * Refresh access token
-   * @param refreshToken - Refresh token
-   * @returns New access and refresh tokens
-   */
-  public async refreshToken(refreshToken: string): Promise<{ token: string; refreshToken: string }> {
-    try {
-      // Verify refresh token
-      const decoded = jwt.verify(refreshToken, config.jwtSecret) as any;
-      
-      if (!decoded || !decoded.userId || decoded.type !== 'refresh') {
-        throw new AppError(401, 'Invalid refresh token');
-      }
-      
-      // Get user with roles
-      const userData = await this.userRepository.getUserWithRoles(decoded.userId);
-      
-      if (!userData) {
-        throw new AppError(401, 'User not found');
-      }
-      
-      // Check if user is active
-      if (!userData.user.is_active) {
-        throw new AppError(401, 'Account is deactivated');
-      }
-      
-      // Generate new tokens
-      const token = this.generateToken(
-        userData.user.id,
-        userData.roles.map(role => role.name)
+      // Send password changed notification
+      await emailService.sendPasswordChangedEmail(
+        user.email,
+        user.firstName
       );
-      const newRefreshToken = this.generateRefreshToken(userData.user.id);
-      
-      return { token, refreshToken: newRefreshToken };
+
+      await transaction.commit();
+      return true;
     } catch (error) {
-      if (error instanceof jwt.JsonWebTokenError) {
-        throw new AppError(401, 'Invalid or expired refresh token');
-      }
-      
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Token refresh failed', error);
-      throw new AppError(500, 'Token refresh failed');
+      await transaction.rollback();
+      return false;
     }
   }
 
   /**
-   * Invalidate refresh token
-   * @param refreshToken - Refresh token
+   * Verify access token
    */
-  public async invalidateRefreshToken(refreshToken: string): Promise<void> {
-    // In a production system, you would implement token blacklisting or
-    // a token versioning system to invalidate refresh tokens
-    // For simplicity, we'll assume this happens without error
-    return Promise.resolve();
+  verifyToken(token: string): TokenVerificationResponse {
+    return verifyAccessToken(token);
   }
 
   /**
-   * Send verification email
-   * @param email - User email
-   * @param token - Verification token
+   * Get user info by ID
    */
-  public async sendVerificationEmail(email: string, token: string): Promise<void> {
-    const verificationUrl = `${config.corsOrigin}/verify-email/${token}`;
-    
-    const subject = 'Verify Your Email Address';
-    const html = `
-      <h1>Email Verification</h1>
-      <p>Thank you for registering. Please verify your email address by clicking the link below:</p>
-      <p><a href="${verificationUrl}">Verify Email Address</a></p>
-      <p>This link will expire in 24 hours.</p>
-      <p>If you did not register for an account, please ignore this email.</p>
-    `;
-    
-    await this.emailService.sendEmail(email, subject, html);
+  async getUserProfile(userId: number): Promise<UserPublicProfile | null> {
+    const userWithRoles = await userRepository.findByIdWithRoles(userId);
+    if (!userWithRoles) {
+      return null;
+    }
+
+    return {
+      id: userWithRoles.id,
+      firstName: userWithRoles.firstName,
+      lastName: userWithRoles.lastName,
+      profileImage: userWithRoles.profileImage,
+      roles: userWithRoles.roles?.map(role => role.name) || [],
+      createdAt: userWithRoles.createdAt,
+    };
   }
 
   /**
-   * Send password reset email
-   * @param email - User email
-   * @param token - Reset token
+   * Change user password
    */
-  public async sendPasswordResetEmail(email: string, token: string): Promise<void> {
-    const resetUrl = `${config.corsOrigin}/reset-password/${token}`;
-    
-    const subject = 'Reset Your Password';
-    const html = `
-      <h1>Password Reset</h1>
-      <p>You requested a password reset. Please click the link below to reset your password:</p>
-      <p><a href="${resetUrl}">Reset Password</a></p>
-      <p>This link will expire in 1 hour.</p>
-      <p>If you did not request a password reset, please ignore this email.</p>
-    `;
-    
-    await this.emailService.sendEmail(email, subject, html);
+  async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<boolean> {
+    // Find user
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      return false;
+    }
+
+    // Verify current password
+    const isPasswordValid = await user.validatePassword(currentPassword);
+    if (!isPasswordValid) {
+      throw new Error('Current password is incorrect');
+    }
+
+    // Start transaction
+    const transaction = await sequelize.transaction();
+
+    try {
+      // Update password
+      await userRepository.updatePassword(user.id, newPassword, transaction);
+
+      // Invalidate all refresh tokens
+      await userRepository.updateRefreshToken(user.id, null, transaction);
+
+      // Send password changed notification
+      await emailService.sendPasswordChangedEmail(
+        user.email,
+        user.firstName
+      );
+
+      await transaction.commit();
+      return true;
+    } catch (error) {
+      await transaction.rollback();
+      return false;
+    }
+  }
+
+  /**
+   * Resend verification email
+   */
+  async resendVerificationEmail(email: string): Promise<boolean> {
+    // Find user by email
+    const user = await userRepository.findByEmail(email);
+    if (!user) {
+      // Don't reveal that the email doesn't exist
+      return true;
+    }
+
+    // Check if user is already verified
+    if (user.isEmailVerified) {
+      return true;
+    }
+
+    // Check for rate limiting
+    const recentVerifications = await verificationRepository.countRecentByUserAndType(
+      user.id,
+      VerificationType.EMAIL_VERIFICATION,
+      30 // Check last 30 minutes
+    );
+
+    if (recentVerifications >= 3) {
+      throw new Error('Too many verification emails have been sent recently. Please try again later.');
+    }
+
+    // Invalidate previous verification tokens
+    await verificationRepository.invalidateAllForUser(
+      user.id,
+      VerificationType.EMAIL_VERIFICATION
+    );
+
+    // Create new verification token
+    const verification = await verificationRepository.createVerification(
+      user.id,
+      VerificationType.EMAIL_VERIFICATION,
+      72 // 72 hours expiry
+    );
+
+    // Send verification email
+    await emailService.sendVerificationEmail(
+      user.email,
+      user.firstName,
+      verification.token
+    );
+
+    return true;
   }
 }
+
+export default new AuthService();

@@ -1,174 +1,189 @@
 import nodemailer from 'nodemailer';
-import { config } from '../config/environment';
-import { logger } from '../utils/logger';
+import path from 'path';
+import fs from 'fs';
+import handlebars from 'handlebars';
+import dotenv from 'dotenv';
+
+// Import handlebars types directly
+type HandlebarsTemplateDelegate = handlebars.TemplateDelegate;
+
+// Load environment variables
+dotenv.config();
+
+// Configure email transport
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST || 'smtp.example.com',
+  port: parseInt(process.env.EMAIL_PORT || '587', 10),
+  secure: process.env.EMAIL_SECURE === 'true',
+  auth: {
+    user: process.env.EMAIL_USER || 'user@example.com',
+    pass: process.env.EMAIL_PASS || 'password',
+  },
+});
+
+// Template cache
+const templateCache: Record<string, HandlebarsTemplateDelegate> = {};
 
 /**
- * Email Service for sending emails
+ * Load and compile email template
  */
+const loadTemplate = (templateName: string): HandlebarsTemplateDelegate => {
+  // Check cache first
+  if (templateCache[templateName]) {
+    return templateCache[templateName];
+  }
+  
+  // Load template file
+  const templatePath = path.join(__dirname, '../templates/emails', `${templateName}.hbs`);
+  const templateSource = fs.readFileSync(templatePath, 'utf-8');
+  
+  // Compile template
+  const template = handlebars.compile(templateSource);
+  
+  // Store in cache
+  templateCache[templateName] = template;
+  
+  return template;
+};
+
+/**
+ * Interface for email options
+ */
+interface EmailOptions {
+  to: string;
+  subject: string;
+  html?: string;
+  text?: string;
+  template?: string;
+  context?: Record<string, any>;
+  attachments?: Array<{
+    filename: string;
+    path: string;
+    contentType?: string;
+  }>;
+}
+
 export class EmailService {
-  private transporter!: nodemailer.Transporter;
-
-  constructor() {
-    // In development, use ethereal.email for testing
-    if (config.nodeEnv === 'development' && !process.env.EMAIL_HOST) {
-      this.createTestAccount();
-    } else {
-      this.createProductionTransporter();
-    }
-  }
-
   /**
-   * Create test email account for development
+   * Send an email
    */
-  private async createTestAccount(): Promise<void> {
+  async sendEmail(options: EmailOptions): Promise<boolean> {
     try {
-      // Create ethereal.email test account
-      const testAccount = await nodemailer.createTestAccount();
+      // If template is provided, render it
+      let html = options.html;
+      let text = options.text;
       
-      this.transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass
+      if (options.template && options.context) {
+        const template = loadTemplate(options.template);
+        html = template(options.context);
+        
+        // Generate plain text version if no text specified
+        if (!text && html) {
+          // Simple HTML to text conversion - fix the possible undefined error
+          text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
         }
-      });
-      
-      logger.info(`Email testing account created: ${testAccount.user}`);
-    } catch (error) {
-      logger.error('Failed to create test email account', error);
-    }
-  }
-
-  /**
-   * Create email transporter for production
-   */
-  private createProductionTransporter(): void {
-    try {
-      this.transporter = nodemailer.createTransport({
-        host: process.env.EMAIL_HOST,
-        port: parseInt(process.env.EMAIL_PORT || '587', 10),
-        secure: process.env.EMAIL_SECURE === 'true',
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS
-        }
-      });
-      
-      logger.info('Email transporter created for production');
-    } catch (error) {
-      logger.error('Failed to create email transporter', error);
-    }
-  }
-
-  /**
-   * Send email
-   * @param to - Recipient email address
-   * @param subject - Email subject
-   * @param html - Email body as HTML
-   * @param text - Plain text version of email (optional)
-   * @returns Promise with send info
-   */
-  public async sendEmail(
-    to: string,
-    subject: string,
-    html: string,
-    text?: string
-  ): Promise<any> {
-    try {
-      if (!this.transporter) {
-        await this.createTestAccount();
       }
       
-      const mailOptions = {
-        from: process.env.EMAIL_FROM || 'noreply@gemstone-system.com',
-        to,
-        subject,
-        text: text || html.replace(/<[^>]*>/g, ''), // Strip HTML if text not provided
-        html
-      };
+      // Send email
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || 'Gemstone System <noreply@example.com>',
+        to: options.to,
+        subject: options.subject,
+        html,
+        text,
+        attachments: options.attachments,
+      });
       
-      const info = await this.transporter.sendMail(mailOptions);
-      
-      // Log preview URL in development
-      if (config.nodeEnv === 'development') {
-        logger.info(`Email preview URL: ${nodemailer.getTestMessageUrl(info)}`);
-      }
-      
-      return info;
+      return true;
     } catch (error) {
-      logger.error('Failed to send email', error);
-      throw error;
+      console.error('Email sending failed:', error);
+      return false;
     }
   }
-
+  
   /**
-   * Send a welcome email
-   * @param to - Recipient email address
-   * @param name - Recipient name
+   * Send welcome email
    */
-  public async sendWelcomeEmail(to: string, name: string): Promise<any> {
-    const subject = 'Welcome to the Gemstone System';
-    const html = `
-      <h1>Welcome to the Gemstone System, ${name}!</h1>
-      <p>Thank you for joining our platform. We're excited to have you with us.</p>
-      <p>With your account, you can:</p>
-      <ul>
-        <li>Browse a wide variety of gemstones, rough stones, and jewelry</li>
-        <li>Track your favorite items</li>
-        <li>Manage your collection</li>
-        <li>Participate in our marketplace</li>
-      </ul>
-      <p>If you have any questions, feel free to contact our support team.</p>
-      <p>Best regards,<br>The Gemstone System Team</p>
-    `;
-    
-    return this.sendEmail(to, subject, html);
+  async sendWelcomeEmail(to: string, firstName: string): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: 'Welcome to the Gemstone System',
+      template: 'welcome',
+      context: {
+        firstName,
+        appName: 'Gemstone System',
+        loginUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`,
+      },
+    });
   }
-
+  
   /**
-   * Send a certificate email
-   * @param to - Recipient email address
-   * @param certificateUrl - URL to view the certificate
-   * @param gemstoneId - ID of the gemstone
+   * Send email verification
    */
-  public async sendCertificateEmail(
-    to: string,
-    certificateUrl: string,
-    gemstoneId: string
-  ): Promise<any> {
-    const subject = `Certificate for Gemstone ${gemstoneId}`;
-    const html = `
-      <h1>Your Gemstone Certificate</h1>
-      <p>Your certificate for gemstone ${gemstoneId} is now available.</p>
-      <p>You can view your certificate by clicking the link below:</p>
-      <p><a href="${certificateUrl}">View Certificate</a></p>
-      <p>This certificate verifies the authenticity and details of your gemstone.</p>
-      <p>Thank you for using our platform.</p>
-      <p>Best regards,<br>The Gemstone System Team</p>
-    `;
+  async sendVerificationEmail(to: string, firstName: string, token: string): Promise<boolean> {
+    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
     
-    return this.sendEmail(to, subject, html);
+    return this.sendEmail({
+      to,
+      subject: 'Please Verify Your Email',
+      template: 'email-verification',
+      context: {
+        firstName,
+        verificationUrl,
+        token,
+        expires: '72 hours',
+      },
+    });
   }
-
+  
   /**
-   * Send a transfer notification email
-   * @param to - Recipient email address
-   * @param transferData - Transfer details
+   * Send password reset email
    */
-  public async sendTransferNotificationEmail(
-    to: string,
-    transferData: { itemId: string; itemType: string; from: string; to: string }
-  ): Promise<any> {
-    const subject = `Transfer Notification: ${transferData.itemType} ${transferData.itemId}`;
-    const html = `
-      <h1>Ownership Transfer Notification</h1>
-      <p>This is to notify you that the ownership of ${transferData.itemType} with ID ${transferData.itemId} has been transferred from ${transferData.from} to ${transferData.to}.</p>
-      <p>If you did not authorize this transfer, please contact our support team immediately.</p>
-      <p>Best regards,<br>The Gemstone System Team</p>
-    `;
+  async sendPasswordResetEmail(to: string, firstName: string, token: string): Promise<boolean> {
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
     
-    return this.sendEmail(to, subject, html);
+    return this.sendEmail({
+      to,
+      subject: 'Password Reset Request',
+      template: 'password-reset',
+      context: {
+        firstName,
+        resetUrl,
+        token,
+        expires: '1 hour',
+      },
+    });
+  }
+  
+  /**
+   * Send account locked notification
+   */
+  async sendAccountLockedEmail(to: string, firstName: string): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: 'Account Security Alert',
+      template: 'account-locked',
+      context: {
+        firstName,
+        supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
+      },
+    });
+  }
+  
+  /**
+   * Send password changed notification
+   */
+  async sendPasswordChangedEmail(to: string, firstName: string): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: 'Your Password Has Been Changed',
+      template: 'password-changed',
+      context: {
+        firstName,
+        supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
+      },
+    });
   }
 }
+
+export default new EmailService();

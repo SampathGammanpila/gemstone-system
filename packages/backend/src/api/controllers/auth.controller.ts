@@ -1,361 +1,315 @@
-// src/api/controllers/auth.controller.ts
-import { Request, Response, NextFunction } from 'express';
-import { AuthService } from '../../services/auth.service';
-import { UserService } from '../../services/user.service';
-import { logger } from '../../utils/logger';
-import { AppError } from '../middlewares/error.middleware';
-import { AuditActions, EntityTypes } from '../middlewares/audit.middleware';
-import { generateCsrfToken } from '../middlewares/csrf.middleware';
+import { Request, Response } from 'express';
+import authService from '../../services/auth.service';
+import { UserRegistrationRequest, UserLoginRequest } from '../../types/user.types';
+import { RefreshTokenRequest } from '../../types/auth.types';
 
 export class AuthController {
-  private authService: AuthService;
-  private userService: UserService;
-
-  constructor() {
-    this.authService = new AuthService();
-    this.userService = new UserService();
+  /**
+   * Register a new user
+   */
+  async register(req: Request, res: Response): Promise<void> {
+    try {
+      const userData: UserRegistrationRequest = req.body;
+      
+      const user = await authService.register(userData);
+      
+      res.status(201).json({
+        success: true,
+        message: 'User registered successfully. Please check your email to verify your account.',
+        userId: user.id,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('already exists')) {
+        res.status(409).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        console.error('Registration error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'An error occurred during registration',
+        });
+      }
+    }
   }
 
   /**
-   * Get CSRF token
-   * @route GET /api/auth/csrf-token
+   * Login user
    */
-  public getCsrfToken = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async login(req: Request, res: Response): Promise<void> {
     try {
-      const { token, expires } = generateCsrfToken();
+      const loginData: UserLoginRequest = req.body;
+      
+      const authResponse = await authService.login(loginData);
       
       res.status(200).json({
-        status: 'success',
-        data: {
-          token,
-          expires
-        }
+        success: true,
+        message: 'Login successful',
+        data: authResponse,
       });
     } catch (error) {
-      next(error);
+      res.status(401).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Invalid credentials',
+      });
     }
-  };
+  }
 
   /**
-   * Register a new user
-   * @route POST /api/auth/register
+   * Logout user
    */
-  public register = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async logout(req: Request, res: Response): Promise<void> {
     try {
-      const { email, password, first_name, last_name, phone } = req.body;
+      // The auth middleware adds userId to the request
+      const userId = (req as any).userId;
       
-      // Check if user already exists
-      const existingUser = await this.userService.findByEmail(email);
-      if (existingUser) {
-        throw new AppError(409, 'User with this email already exists');
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
       }
       
-      // Create new user
-      const userData = {
-        email,
-        password,
-        first_name,
-        last_name,
-        phone,
-        is_email_verified: false
-      };
+      await authService.logout(userId);
       
-      // Register user
-      const { user, verificationToken } = await this.authService.register(userData);
-      
-      // Send verification email (async)
-      this.authService.sendVerificationEmail(user.email, verificationToken)
-        .catch(error => {
-          logger.error('Failed to send verification email', error);
-        });
-      
-      // Return success response
-      res.status(201).json({
-        status: 'success',
-        message: 'User registered successfully. Please check your email for verification link.',
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            first_name: user.first_name,
-            last_name: user.last_name
-          }
-        }
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  /**
-   * Login user
-   * @route POST /api/auth/login
-   */
-  public login = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const { email, password } = req.body;
-      
-      // Authenticate user
-      const { user, token, refreshToken } = await this.authService.login(email, password);
-      
-      // Return success response
       res.status(200).json({
-        status: 'success',
-        message: 'Login successful',
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            roles: user.roles
-          },
-          token,
-          refreshToken
-        }
+        success: true,
+        message: 'Logout successful',
       });
     } catch (error) {
-      next(error);
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred during logout',
+      });
     }
-  };
+  }
 
   /**
-   * Verify email
-   * @route GET /api/auth/verify-email/:token
+   * Refresh access token
    */
-  public verifyEmail = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async refreshToken(req: Request, res: Response): Promise<void> {
+    try {
+      const refreshTokenRequest: RefreshTokenRequest = req.body;
+      
+      const authResponse = await authService.refreshToken(refreshTokenRequest);
+      
+      if (!authResponse) {
+        res.status(401).json({
+          success: false,
+          message: 'Invalid refresh token',
+        });
+        return;
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Token refreshed successfully',
+        data: authResponse,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while refreshing token',
+      });
+    }
+  }
+
+  /**
+   * Verify email with token
+   */
+  async verifyEmail(req: Request, res: Response): Promise<void> {
     try {
       const { token } = req.params;
       
-      // Verify email
-      const user = await this.authService.verifyEmail(token);
+      const verified = await authService.verifyEmail(token);
       
-      // Return success response
+      if (!verified) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or expired verification token',
+        });
+        return;
+      }
+      
       res.status(200).json({
-        status: 'success',
+        success: true,
         message: 'Email verified successfully',
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            first_name: user.first_name,
-            last_name: user.last_name
-          }
-        }
       });
     } catch (error) {
-      next(error);
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred during email verification',
+      });
     }
-  };
+  }
 
   /**
-   * Forgot password
-   * @route POST /api/auth/forgot-password
+   * Request password reset
    */
-  public forgotPassword = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async requestPasswordReset(req: Request, res: Response): Promise<void> {
     try {
       const { email } = req.body;
       
-      // Check if user exists
-      const user = await this.userService.findByEmail(email);
-      
-      if (user) {
-        // Generate reset token and send email
-        const resetToken = await this.authService.generatePasswordResetToken(user.id);
-        
-        // Send password reset email (async)
-        this.authService.sendPasswordResetEmail(email, resetToken)
-          .catch(error => {
-            logger.error('Failed to send password reset email', error);
-          });
-      }
+      await authService.requestPasswordReset(email);
       
       // Always return success to prevent email enumeration
       res.status(200).json({
-        status: 'success',
-        message: 'If an account with that email exists, a password reset link has been sent.'
+        success: true,
+        message: 'If the email exists, a password reset link has been sent',
       });
     } catch (error) {
-      next(error);
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while processing your request',
+      });
     }
-  };
+  }
 
   /**
-   * Reset password
-   * @route POST /api/auth/reset-password
+   * Reset password with token
    */
-  public resetPassword = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async resetPassword(req: Request, res: Response): Promise<void> {
     try {
       const { token, password } = req.body;
       
-      // Reset password
-      await this.authService.resetPassword(token, password);
+      const resetSuccess = await authService.resetPassword(token, password);
       
-      // Return success response
+      if (!resetSuccess) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or expired password reset token',
+        });
+        return;
+      }
+      
       res.status(200).json({
-        status: 'success',
-        message: 'Password reset successful'
+        success: true,
+        message: 'Password reset successful',
       });
     } catch (error) {
-      next(error);
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred during password reset',
+      });
     }
-  };
+  }
 
   /**
-   * Change password
-   * @route POST /api/auth/change-password
+   * Change password (authenticated user)
    */
-  public changePassword = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async changePassword(req: Request, res: Response): Promise<void> {
     try {
-      const { current_password, new_password } = req.body;
-      const userId = req.userId;
+      const userId = (req as any).userId;
+      const { currentPassword, newPassword } = req.body;
       
       if (!userId) {
-        throw new AppError(401, 'Authentication required');
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
       }
       
-      // Change password
-      await this.authService.changePassword(userId, current_password, new_password);
+      const changeSuccess = await authService.changePassword(
+        userId,
+        currentPassword,
+        newPassword
+      );
       
-      // Return success response
-      res.status(200).json({
-        status: 'success',
-        message: 'Password changed successfully'
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  /**
-   * Refresh token
-   * @route POST /api/auth/refresh-token
-   */
-  public refreshToken = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const { refresh_token } = req.body;
-      
-      if (!refresh_token) {
-        throw new AppError(400, 'Refresh token is required');
+      if (!changeSuccess) {
+        res.status(400).json({
+          success: false,
+          message: 'Password change failed',
+        });
+        return;
       }
       
-      // Generate new access token
-      const { token, refreshToken } = await this.authService.refreshToken(refresh_token);
-      
-      // Return success response
       res.status(200).json({
-        status: 'success',
-        message: 'Token refreshed successfully',
-        data: {
-          token,
-          refreshToken
-        }
+        success: true,
+        message: 'Password changed successfully',
       });
     } catch (error) {
-      next(error);
+      if (error instanceof Error && error.message.includes('incorrect')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: 'An error occurred during password change',
+        });
+      }
     }
-  };
+  }
 
   /**
-   * Get current user
-   * @route GET /api/auth/me
+   * Get current user profile
    */
-  public getCurrentUser = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async getCurrentUser(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.userId;
+      const userId = (req as any).userId;
       
       if (!userId) {
-        throw new AppError(401, 'Authentication required');
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
       }
       
-      // Get user data
-      const userData = await this.userService.getUserWithRoles(userId);
+      const userProfile = await authService.getUserProfile(userId);
       
-      if (!userData) {
-        throw new AppError(404, 'User not found');
+      if (!userProfile) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
       }
       
-      // Return user data
       res.status(200).json({
-        status: 'success',
-        data: {
-          user: {
-            id: userData.user.id,
-            email: userData.user.email,
-            first_name: userData.user.first_name,
-            last_name: userData.user.last_name,
-            phone: userData.user.phone,
-            profile_image_url: userData.user.profile_image_url,
-            roles: userData.roles.map(role => role.name)
-          }
-        }
+        success: true,
+        data: userProfile,
       });
     } catch (error) {
-      next(error);
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while fetching user profile',
+      });
     }
-  };
+  }
 
   /**
-   * Logout
-   * @route POST /api/auth/logout
+   * Resend verification email
    */
-  public logout = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async resendVerificationEmail(req: Request, res: Response): Promise<void> {
     try {
-      // In a stateless JWT implementation, logging out is primarily a client-side concern
-      // However, we can invalidate refresh tokens server-side
-      const { refresh_token } = req.body;
+      const { email } = req.body;
       
-      if (refresh_token) {
-        await this.authService.invalidateRefreshToken(refresh_token);
-      }
+      await authService.resendVerificationEmail(email);
       
-      // Return success response
+      // Always return success to prevent email enumeration
       res.status(200).json({
-        status: 'success',
-        message: 'Logged out successfully'
+        success: true,
+        message: 'If the email exists and is not verified, a new verification email has been sent',
       });
     } catch (error) {
-      next(error);
+      if (error instanceof Error && error.message.includes('Too many')) {
+        res.status(429).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: 'An error occurred while processing your request',
+        });
+      }
     }
-  };
+  }
 }
+
+export default new AuthController();

@@ -95,3 +95,4 @@ router.get('/mining-locations', (req, res) => {
 });
 
 export const referenceDataManagementRoutes = router;
+export default router;

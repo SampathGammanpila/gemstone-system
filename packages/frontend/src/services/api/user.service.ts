@@ -1,127 +1,240 @@
-import { get, put, post, patch } from './api.service';
-import { ApiResponse } from '@types/api.types';
-import { UserType } from '@types/user.types';
+// User API service
 
-interface GetUserResponse extends ApiResponse {
-  data: {
-    user: UserType;
-  };
-}
+import { 
+  UpdateProfileData, 
+  UpdatePasswordData, 
+  UpdateSettingsData, 
+  UpdateSecurityData,
+  UserSettings,
+  SecuritySettings
+} from '../../types/user.types';
+import { UserProfile } from '../../types/auth.types';
+import { getAccessToken, isTokenExpired } from '../../utils/tokenStorage';
+import authService from './auth.service';
 
-interface GetUsersResponse extends ApiResponse {
-  data: {
-    users: UserType[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      pages: number;
-    };
-  };
-}
+// Base API URL from environment variables
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
-export const userService = {
+/**
+ * User service for handling all user-related API requests
+ */
+class UserService {
   /**
-   * Get current user profile
-   * @returns Promise with user data
+   * Get auth header
    */
-  getProfile: () => {
-    return get<GetUserResponse>('/users/profile');
-  },
+  private async getAuthHeader(): Promise<Headers> {
+    // Check if token is expired and refresh if needed
+    if (isTokenExpired()) {
+      await authService.refreshToken();
+    }
+
+    const token = getAccessToken();
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+
+    const headers = new Headers();
+    headers.append('Authorization', `Bearer ${token}`);
+    return headers;
+  }
 
   /**
    * Update user profile
-   * @param userData - User data to update
-   * @returns Promise with updated user data
    */
-  updateProfile: (userData: Partial<UserType>) => {
-    return put<GetUserResponse>('/users/profile', userData);
-  },
+  async updateProfile(data: UpdateProfileData): Promise<UserProfile> {
+    const headers = await this.getAuthHeader();
+    
+    // Handle file upload for avatar
+    let body: FormData | string;
+    
+    if (data.avatar) {
+      const formData = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        if (key === 'avatar' && value) {
+          formData.append(key, value);
+        } else if (value !== undefined) {
+          formData.append(key, String(value));
+        }
+      });
+      body = formData;
+    } else {
+      headers.append('Content-Type', 'application/json');
+      body = JSON.stringify(data);
+    }
 
-  /**
-   * Upload profile image
-   * @param formData - Form data with image file
-   * @returns Promise with updated user data
-   */
-  uploadProfileImage: (formData: FormData) => {
-    return post<ApiResponse>('/users/profile/image', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    const response = await fetch(`${API_URL}/users/profile`, {
+      method: 'PATCH',
+      headers,
+      body,
     });
-  },
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update profile');
+    }
+
+    return await response.json();
+  }
 
   /**
-   * Get user by ID (admin only)
-   * @param userId - User ID
-   * @returns Promise with user data
+   * Update user password
    */
-  getUserById: (userId: string) => {
-    return get<GetUserResponse>(`/users/${userId}`);
-  },
+  async updatePassword(data: UpdatePasswordData): Promise<{ message: string }> {
+    const headers = await this.getAuthHeader();
+    headers.append('Content-Type', 'application/json');
+
+    const response = await fetch(`${API_URL}/users/password`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update password');
+    }
+
+    return await response.json();
+  }
 
   /**
-   * Get all users (admin only)
-   * @param page - Page number
-   * @param limit - Users per page
-   * @param sort - Sort field
-   * @param order - Sort direction
-   * @param filter - Filter parameters
-   * @returns Promise with users and pagination
+   * Get user settings
    */
-  getAllUsers: (
-    page: number = 1,
-    limit: number = 10,
-    sort: string = 'created_at',
-    order: 'asc' | 'desc' = 'desc',
-    filter: Record<string, any> = {}
-  ) => {
-    const params = {
-      page: page.toString(),
-      limit: limit.toString(),
-      sort,
-      order,
-      ...filter,
-    };
+  async getUserSettings(): Promise<UserSettings> {
+    const headers = await this.getAuthHeader();
 
-    return get<GetUsersResponse>('/users', { params });
-  },
+    const response = await fetch(`${API_URL}/users/settings`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to get user settings');
+    }
+
+    return await response.json();
+  }
 
   /**
-   * Create new user (admin only)
-   * @param userData - User data to create
-   * @returns Promise with created user
+   * Update user settings
    */
-  createUser: (userData: Partial<UserType>) => {
-    return post<GetUserResponse>('/users', userData);
-  },
+  async updateSettings(data: UpdateSettingsData): Promise<UserSettings> {
+    const headers = await this.getAuthHeader();
+    headers.append('Content-Type', 'application/json');
+
+    const response = await fetch(`${API_URL}/users/settings`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update settings');
+    }
+
+    return await response.json();
+  }
 
   /**
-   * Update user (admin only)
-   * @param userId - User ID
-   * @param userData - User data to update
-   * @returns Promise with updated user
+   * Get security settings
    */
-  updateUser: (userId: string, userData: Partial<UserType>) => {
-    return put<GetUserResponse>(`/users/${userId}`, userData);
-  },
+  async getSecuritySettings(): Promise<SecuritySettings> {
+    const headers = await this.getAuthHeader();
+
+    const response = await fetch(`${API_URL}/users/security`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to get security settings');
+    }
+
+    return await response.json();
+  }
 
   /**
-   * Delete user (admin only)
-   * @param userId - User ID
-   * @returns Promise with success status
+   * Update security settings
    */
-  deleteUser: (userId: string) => {
-    return patch<ApiResponse>(`/users/${userId}/delete`);
-  },
+  async updateSecurity(data: UpdateSecurityData): Promise<SecuritySettings> {
+    const headers = await this.getAuthHeader();
+    headers.append('Content-Type', 'application/json');
+
+    const response = await fetch(`${API_URL}/users/security`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update security settings');
+    }
+
+    return await response.json();
+  }
 
   /**
-   * Set user active status (admin only)
-   * @param userId - User ID
-   * @param isActive - Active status
-   * @returns Promise with updated status
+   * Setup two-factor authentication
    */
-  setUserActiveStatus: (userId: string, isActive: boolean) => {
-    return patch<ApiResponse>(`/users/${userId}/active`, { is_active: isActive });
-  },
-};
+  async setupTwoFactor(method: 'app' | 'sms' | 'email'): Promise<{ secret?: string, qrCode?: string }> {
+    const headers = await this.getAuthHeader();
+    headers.append('Content-Type', 'application/json');
+
+    const response = await fetch(`${API_URL}/users/security/two-factor/setup`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ method }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to setup two-factor authentication');
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Verify two-factor authentication
+   */
+  async verifyTwoFactor(code: string): Promise<void> {
+    const headers = await this.getAuthHeader();
+    headers.append('Content-Type', 'application/json');
+
+    const response = await fetch(`${API_URL}/users/security/two-factor/verify`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ code }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to verify two-factor code');
+    }
+  }
+
+  /**
+   * Disable two-factor authentication
+   */
+  async disableTwoFactor(code: string): Promise<void> {
+    const headers = await this.getAuthHeader();
+    headers.append('Content-Type', 'application/json');
+
+    const response = await fetch(`${API_URL}/users/security/two-factor/disable`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ code }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to disable two-factor authentication');
+    }
+  }
+}
+
+export default new UserService();

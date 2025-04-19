@@ -1,0 +1,33 @@
+<div class="container mx-auto px-4 py-16 flex flex-col items-center">
+    <div class="text-center">
+      <div class="text-red-500 mb-4">
+        <i class="fas fa-exclamation-triangle text-6xl"></i>
+      </div>
+      
+      <h1 class="text-3xl font-bold text-gray-800 mb-4">
+        <%= title || 'Error' %>
+      </h1>
+      
+      <div class="text-xl text-gray-600 mb-8">
+        <%= message || 'An unexpected error occurred' %>
+      </div>
+      
+      <% if (locals.error && process.env.NODE_ENV === 'development') { %>
+        <div class="bg-gray-100 p-4 rounded-lg text-left mb-8 max-w-4xl mx-auto">
+          <pre class="text-sm overflow-auto p-2"><%= JSON.stringify(error, null, 2) %></pre>
+          <% if (error.stack) { %>
+            <div class="mt-4 border-t border-gray-300 pt-4">
+              <p class="font-semibold mb-2">Stack Trace:</p>
+              <pre class="text-sm overflow-auto p-2 bg-gray-200 rounded"><%= error.stack %></pre>
+            </div>
+          <% } %>
+        </div>
+      <% } %>
+      
+      <div class="mt-6">
+        <a href="/admin/dashboard" class="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 inline-flex items-center">
+          <i class="fas fa-home mr-2"></i> Back to Dashboard
+        </a>
+      </div>
+    </div>
+  </div>

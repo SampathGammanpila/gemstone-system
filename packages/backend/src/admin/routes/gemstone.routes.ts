@@ -32,3 +32,4 @@ router.get('/:id', (req, res) => {
 });
 
 export const gemstoneManagementRoutes = router;
+export default router;

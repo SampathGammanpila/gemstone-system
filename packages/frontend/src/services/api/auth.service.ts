@@ -1,140 +1,225 @@
-import { get, post, put } from './api.service';
-import { ApiResponse } from '@types/api.types';
-import { UserType } from '@types/user.types';
+// Authentication API service
 
-// Interface for login response
-interface LoginResponse {
-  status: string;
-  message: string;
-  data: {
-    user: UserType;
-    token: string;
-    refreshToken: string;
-  };
-}
+import { 
+  LoginCredentials, 
+  RegistrationData, 
+  AuthToken, 
+  ForgotPasswordData, 
+  ResetPasswordData,
+  VerifyEmailData,
+  UserProfile,
+  ProfessionalRegistrationData
+} from '../../types/auth.types';
+import { getAccessToken, getRefreshToken, storeTokens, isTokenExpired } from '../../utils/tokenStorage';
 
-// Interface for register response
-interface RegisterResponse {
-  status: string;
-  message: string;
-  data: {
-    user: UserType;
-  };
-}
+// Base API URL from environment variables
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
-// Interface for token refresh response
-interface RefreshResponse {
-  status: string;
-  message: string;
-  data: {
-    token: string;
-    refreshToken: string;
-  };
-}
-
-// Auth service methods
-export const authService = {
+/**
+ * Authentication service for handling all auth-related API requests
+ */
+class AuthService {
   /**
-   * Login user
-   * @param email - User email
-   * @param password - User password
-   * @returns Promise with login response
+   * User login
    */
-  login: (email: string, password: string) => {
-    return post<LoginResponse>('/auth/login', { email, password });
-  },
+  async login(credentials: LoginCredentials): Promise<{ token: AuthToken; user: UserProfile }> {
+    const response = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to login');
+    }
+
+    const data = await response.json();
+    return data;
+  }
 
   /**
-   * Register new user
-   * @param userData - User registration data
-   * @returns Promise with register response
+   * User registration
    */
-  register: (userData: any) => {
-    return post<RegisterResponse>('/auth/register', userData);
-  },
+  async register(userData: RegistrationData): Promise<{ message: string }> {
+    const response = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to register');
+    }
+
+    return await response.json();
+  }
 
   /**
-   * Register new professional user
-   * @param userData - Professional user registration data
-   * @returns Promise with register response
+   * Professional user registration
    */
-  registerProfessional: (userData: any) => {
-    return post<RegisterResponse>('/auth/register/professional', userData);
-  },
+  async registerProfessional(userData: ProfessionalRegistrationData): Promise<{ message: string }> {
+    const response = await fetch(`${API_URL}/auth/register/professional`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
 
-  /**
-   * Logout user
-   * @param data - Optional refresh token
-   * @returns Promise with API response
-   */
-  logout: (data?: { refresh_token: string }) => {
-    return post<ApiResponse>('/auth/logout', data);
-  },
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to register as professional');
+    }
 
-  /**
-   * Verify email address
-   * @param token - Verification token
-   * @returns Promise with API response
-   */
-  verifyEmail: (token: string) => {
-    return get<ApiResponse>(`/auth/verify-email/${token}`);
-  },
+    return await response.json();
+  }
 
   /**
    * Request password reset
-   * @param email - User email
-   * @returns Promise with API response
    */
-  forgotPassword: (email: string) => {
-    return post<ApiResponse>('/auth/forgot-password', { email });
-  },
+  async forgotPassword(data: ForgotPasswordData): Promise<{ message: string }> {
+    const response = await fetch(`${API_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to process forgot password request');
+    }
+
+    return await response.json();
+  }
 
   /**
    * Reset password with token
-   * @param token - Reset token
-   * @param password - New password
-   * @param confirmPassword - Confirm new password
-   * @returns Promise with API response
    */
-  resetPassword: (token: string, password: string, confirmPassword: string) => {
-    return post<ApiResponse>('/auth/reset-password', {
-      token,
-      password,
-      confirm_password: confirmPassword,
+  async resetPassword(data: ResetPasswordData): Promise<{ message: string }> {
+    const response = await fetch(`${API_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     });
-  },
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to reset password');
+    }
+
+    return await response.json();
+  }
 
   /**
-   * Change password (authenticated user)
-   * @param currentPassword - Current password
-   * @param newPassword - New password
-   * @param confirmPassword - Confirm new password
-   * @returns Promise with API response
+   * Verify email address with token
    */
-  changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => {
-    return post<ApiResponse>('/auth/change-password', {
-      current_password: currentPassword,
-      new_password: newPassword,
-      confirm_password: confirmPassword,
+  async verifyEmail(data: VerifyEmailData): Promise<{ message: string }> {
+    const response = await fetch(`${API_URL}/auth/verify-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     });
-  },
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to verify email');
+    }
+
+    return await response.json();
+  }
 
   /**
-   * Refresh authentication token
-   * @param refreshToken - Refresh token
-   * @returns Promise with refresh response
+   * Get current user profile
    */
-  refreshToken: (refreshToken: string) => {
-    return post<RefreshResponse>('/auth/refresh-token', {
-      refresh_token: refreshToken,
+  async getCurrentUser(): Promise<UserProfile> {
+    // Check if token is expired and refresh if needed
+    if (isTokenExpired()) {
+      await this.refreshToken();
+    }
+
+    const token = getAccessToken();
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+
+    const response = await fetch(`${API_URL}/auth/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
     });
-  },
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Session expired');
+      }
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to get user profile');
+    }
+
+    return await response.json();
+  }
 
   /**
-   * Get current user data
-   * @returns Promise with user data
+   * Refresh access token
    */
-  getCurrentUser: () => {
-    return get<ApiResponse>('/auth/me');
-  },
-};
+  async refreshToken(): Promise<AuthToken> {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const response = await fetch(`${API_URL}/auth/refresh-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to refresh token');
+    }
+
+    const tokens = await response.json();
+    storeTokens(tokens);
+    return tokens;
+  }
+
+  /**
+   * Check if refresh token is valid
+   */
+  async validateRefreshToken(): Promise<boolean> {
+    try {
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) return false;
+
+      const response = await fetch(`${API_URL}/auth/validate-refresh-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error validating refresh token', error);
+      return false;
+    }
+  }
+}
+
+export default new AuthService();

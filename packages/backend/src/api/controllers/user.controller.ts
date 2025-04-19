@@ -1,492 +1,321 @@
-import { Request, Response, NextFunction } from 'express';
-import { UserService } from '../../services/user.service';
-import { logger } from '../../utils/logger';
-import { AppError } from '../middlewares/error.middleware';
-import { AuditActions, EntityTypes } from '../middlewares/audit.middleware';
+import { Request, Response } from 'express';
+import userService from '../../services/user.service';
+import { UserProfileUpdateRequest, UserStatus } from '../../types/user.types';
 
 export class UserController {
-  private userService: UserService;
-
-  constructor() {
-    this.userService = new UserService();
-  }
-
   /**
    * Get current user profile
-   * @route GET /api/users/profile
    */
-  public getProfile = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async getUserProfile(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.userId;
+      const userId = (req as any).userId;
       
       if (!userId) {
-        throw new AppError(401, 'Authentication required');
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
       }
       
-      // Get user data
-      const userData = await this.userService.getUserWithRoles(userId);
+      const user = await userService.getUserById(userId);
       
-      if (!userData) {
-        throw new AppError(404, 'User not found');
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
       }
       
-      // Return user data
+      // Remove sensitive information
+      const { password, refreshToken, passwordResetToken, passwordResetExpires, ...userProfile } = user;
+      
       res.status(200).json({
-        status: 'success',
-        data: {
-          user: {
-            id: userData.user.id,
-            email: userData.user.email,
-            first_name: userData.user.first_name,
-            last_name: userData.user.last_name,
-            phone: userData.user.phone,
-            profile_image_url: userData.user.profile_image_url,
-            roles: userData.roles.map(role => role.name)
-          }
-        }
+        success: true,
+        data: userProfile,
       });
     } catch (error) {
-      next(error);
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while fetching user profile',
+      });
     }
-  };
+  }
 
   /**
    * Update user profile
-   * @route PUT /api/users/profile
    */
-  public updateProfile = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async updateUserProfile(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.userId;
+      const userId = (req as any).userId;
+      const profileData: UserProfileUpdateRequest = req.body;
       
       if (!userId) {
-        throw new AppError(401, 'Authentication required');
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
       }
       
-      const { first_name, last_name, phone } = req.body;
-      
-      // Update user
-      const updatedUser = await this.userService.updateUser(userId, {
-        first_name,
-        last_name,
-        phone
-      });
+      const updatedUser = await userService.updateUserProfile(userId, profileData);
       
       if (!updatedUser) {
-        throw new AppError(404, 'User not found');
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
       }
       
-      // Return updated user data
+      // Remove sensitive information
+      const { password, refreshToken, passwordResetToken, passwordResetExpires, ...userProfile } = updatedUser;
+      
       res.status(200).json({
-        status: 'success',
+        success: true,
         message: 'Profile updated successfully',
-        data: {
-          user: {
-            id: updatedUser.id,
-            email: updatedUser.email,
-            first_name: updatedUser.first_name,
-            last_name: updatedUser.last_name,
-            phone: updatedUser.phone,
-            profile_image_url: updatedUser.profile_image_url
-          }
-        }
+        data: userProfile,
       });
     } catch (error) {
-      next(error);
-    }
-  };
-
-  /**
-   * Upload profile image
-   * @route POST /api/users/profile/image
-   */
-  public uploadProfileImage = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const userId = req.userId;
-      
-      if (!userId) {
-        throw new AppError(401, 'Authentication required');
-      }
-      
-      if (!req.file) {
-        throw new AppError(400, 'No image file provided');
-      }
-      
-      // Upload profile image
-      const updatedUser = await this.userService.uploadProfileImage(userId, req.file);
-      
-      if (!updatedUser) {
-        throw new AppError(404, 'User not found');
-      }
-      
-      // Return success response
-      res.status(200).json({
-        status: 'success',
-        message: 'Profile image uploaded successfully',
-        data: {
-          profile_image_url: updatedUser.profile_image_url
-        }
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while updating user profile',
       });
-    } catch (error) {
-      next(error);
     }
-  };
+  }
 
   /**
    * Get user by ID (admin only)
-   * @route GET /api/users/:id
    */
-  public getUserById = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async getUserById(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
+      const userId = parseInt(id, 10);
       
-      // Get user data
-      const userData = await this.userService.getUserWithRoles(id);
-      
-      if (!userData) {
-        throw new AppError(404, 'User not found');
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid user ID',
+        });
+        return;
       }
       
-      // Return user data
+      const user = await userService.getUserById(userId);
+      
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
+      }
+      
+      // Remove sensitive information
+      const { password, refreshToken, passwordResetToken, passwordResetExpires, ...userProfile } = user;
+      
       res.status(200).json({
-        status: 'success',
-        data: {
-          user: {
-            id: userData.user.id,
-            email: userData.user.email,
-            first_name: userData.user.first_name,
-            last_name: userData.user.last_name,
-            phone: userData.user.phone,
-            profile_image_url: userData.user.profile_image_url,
-            is_email_verified: userData.user.is_email_verified,
-            is_active: userData.user.is_active,
-            last_login: userData.user.last_login,
-            created_at: userData.user.created_at,
-            roles: userData.roles.map(role => role.name)
-          }
-        }
+        success: true,
+        data: userProfile,
       });
     } catch (error) {
-      next(error);
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while fetching user',
+      });
     }
-  };
+  }
 
   /**
-   * Get all users (admin only)
-   * @route GET /api/users
+   * Get all users with pagination (admin only)
    */
-  public getAllUsers = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async getUsers(req: Request, res: Response): Promise<void> {
     try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
-      const sort = req.query.sort as string || 'created_at';
-      const order = (req.query.order as 'asc' | 'desc') || 'desc';
+      const page = parseInt(req.query.page as string || '1', 10);
+      const limit = parseInt(req.query.limit as string || '20', 10);
       
-      // Build filter from query params
-      const filter: Record<string, any> = {};
+      const { users, total } = await userService.getUsers(page, limit);
       
-      if (req.query.email) {
-        filter.email = req.query.email;
-      }
+      // Set pagination headers
+      res.setHeader('X-Total-Count', total.toString());
       
-      if (req.query.is_active) {
-        filter.is_active = req.query.is_active === 'true';
-      }
-      
-      if (req.query.is_email_verified) {
-        filter.is_email_verified = req.query.is_email_verified === 'true';
-      }
-      
-      // Get users
-      const { users, total } = await this.userService.getAllUsers(
-        page,
-        limit,
-        sort,
-        order,
-        filter
-      );
-      
-      // Return users
       res.status(200).json({
-        status: 'success',
+        success: true,
         data: {
-          users: users.map(user => ({
-            id: user.id,
-            email: user.email,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            phone: user.phone,
-            is_email_verified: user.is_email_verified,
-            is_active: user.is_active,
-            created_at: user.created_at
-          })),
-          pagination: {
-            page,
-            limit,
-            total,
-            pages: Math.ceil(total / limit)
-          }
-        }
+          users,
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       });
     } catch (error) {
-      next(error);
-    }
-  };
-
-  /**
-   * Create user (admin only)
-   * @route POST /api/users
-   */
-  public createUser = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const { email, password, first_name, last_name, phone, roles } = req.body;
-      
-      // Create user
-      const userData = {
-        email,
-        password,
-        first_name,
-        last_name,
-        phone,
-        is_email_verified: true, // Admin-created users are verified by default
-        is_active: true
-      };
-      
-      // Get role IDs from role names
-      const roleIds = roles ? await this.getRoleIds(roles) : [1]; // Default to customer role
-      
-      // Create user
-      const user = await this.userService.createUser(userData, roleIds);
-      
-      // Return success response
-      res.status(201).json({
-        status: 'success',
-        message: 'User created successfully',
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            phone: user.phone,
-            is_email_verified: user.is_email_verified,
-            is_active: user.is_active,
-            created_at: user.created_at
-          }
-        }
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while fetching users',
       });
-    } catch (error) {
-      next(error);
     }
-  };
+  }
 
   /**
-   * Update user (admin only)
-   * @route PUT /api/users/:id
+   * Update user status (admin only)
    */
-  public updateUser = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async updateUserStatus(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { first_name, last_name, phone, is_active, roles } = req.body;
+      const { status } = req.body;
+      const userId = parseInt(id, 10);
       
-      // Update user basic info
-      const updatedUser = await this.userService.updateUser(id, {
-        first_name,
-        last_name,
-        phone,
-        is_active
-      });
-      
-      if (!updatedUser) {
-        throw new AppError(404, 'User not found');
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid user ID',
+        });
+        return;
       }
       
-      // Update roles if provided
-      if (roles && Array.isArray(roles)) {
-        // Get current roles
-        const userData = await this.userService.getUserWithRoles(id);
-        
-        if (userData) {
-          const currentRoles = userData.roles.map(role => role.name);
-          const rolesToAdd = roles.filter(role => !currentRoles.includes(role));
-          const rolesToRemove = currentRoles.filter(role => !roles.includes(role));
-          
-          // Add new roles
-          for (const roleName of rolesToAdd) {
-            const roleId = await this.getRoleId(roleName);
-            if (roleId) {
-              await this.userService.addRoleToUser(id, roleId);
-            }
-          }
-          
-          // Remove roles
-          for (const roleName of rolesToRemove) {
-            const roleId = await this.getRoleId(roleName);
-            if (roleId) {
-              await this.userService.removeRoleFromUser(id, roleId);
-            }
-          }
-        }
+      if (!Object.values(UserStatus).includes(status)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid user status',
+        });
+        return;
       }
       
-      // Get updated user with roles
-      const updatedUserData = await this.userService.getUserWithRoles(id);
+      const updated = await userService.updateUserStatus(userId, status);
       
-      // Return success response
+      if (!updated) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
+      }
+      
       res.status(200).json({
-        status: 'success',
-        message: 'User updated successfully',
-        data: {
-          user: {
-            id: updatedUserData?.user.id,
-            email: updatedUserData?.user.email,
-            first_name: updatedUserData?.user.first_name,
-            last_name: updatedUserData?.user.last_name,
-            phone: updatedUserData?.user.phone,
-            is_email_verified: updatedUserData?.user.is_email_verified,
-            is_active: updatedUserData?.user.is_active,
-            created_at: updatedUserData?.user.created_at,
-            roles: updatedUserData?.roles.map(role => role.name)
-          }
-        }
+        success: true,
+        message: 'User status updated successfully',
       });
     } catch (error) {
-      next(error);
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while updating user status',
+      });
     }
-  };
+  }
+
+  /**
+   * Add role to user (admin only)
+   */
+  async addUserRole(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { role } = req.body;
+      const userId = parseInt(id, 10);
+      
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid user ID',
+        });
+        return;
+      }
+      
+      await userService.addUserRole(userId, role);
+      
+      res.status(200).json({
+        success: true,
+        message: `Role '${role}' added to user successfully`,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) {
+        res.status(404).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: 'An error occurred while adding role to user',
+        });
+      }
+    }
+  }
+
+  /**
+   * Remove role from user (admin only)
+   */
+  async removeUserRole(req: Request, res: Response): Promise<void> {
+    try {
+      const { id, role } = req.params;
+      const userId = parseInt(id, 10);
+      
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid user ID',
+        });
+        return;
+      }
+      
+      await userService.removeUserRole(userId, role);
+      
+      res.status(200).json({
+        success: true,
+        message: `Role '${role}' removed from user successfully`,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) {
+        res.status(404).json({
+          success: false,
+          message: error.message,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: 'An error occurred while removing role from user',
+        });
+      }
+    }
+  }
 
   /**
    * Delete user (admin only)
-   * @route DELETE /api/users/:id
    */
-  public deleteUser = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  async deleteUser(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
+      const userId = parseInt(id, 10);
       
-      // Delete user
-      const deleted = await this.userService.deleteUser(id);
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid user ID',
+        });
+        return;
+      }
+      
+      const deleted = await userService.deleteUser(userId);
       
       if (!deleted) {
-        throw new AppError(404, 'User not found');
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
       }
       
-      // Return success response
       res.status(200).json({
-        status: 'success',
-        message: 'User deleted successfully'
+        success: true,
+        message: 'User deleted successfully',
       });
     } catch (error) {
-      next(error);
-    }
-  };
-
-  /**
-   * Set user active status (admin only)
-   * @route PATCH /api/users/:id/active
-   */
-  public setUserActiveStatus = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const { id } = req.params;
-      const { is_active } = req.body;
-      
-      if (typeof is_active !== 'boolean') {
-        throw new AppError(400, 'is_active must be a boolean value');
-      }
-      
-      // Update user
-      const updatedUser = await this.userService.setUserActiveStatus(id, is_active);
-      
-      if (!updatedUser) {
-        throw new AppError(404, 'User not found');
-      }
-      
-      // Return success response
-      res.status(200).json({
-        status: 'success',
-        message: is_active ? 'User activated successfully' : 'User deactivated successfully',
-        data: {
-          is_active: updatedUser.is_active
-        }
+      res.status(500).json({
+        success: false,
+        message: 'An error occurred while deleting user',
       });
-    } catch (error) {
-      next(error);
     }
-  };
-
-  /**
-   * Get role ID from role name
-   * @param roleName - Role name
-   * @returns Role ID
-   */
-  private async getRoleId(roleName: string): Promise<number | null> {
-    try {
-      // This is a simplified implementation
-      // In a real application, you would query the database to get the role ID
-      const roleMap: Record<string, number> = {
-        'customer': 1,
-        'dealer': 2,
-        'cutter': 3,
-        'appraiser': 4,
-        'admin': 5
-      };
-      
-      return roleMap[roleName] || null;
-    } catch (error) {
-      logger.error('Failed to get role ID', error);
-      return null;
-    }
-  }
-
-  /**
-   * Get role IDs from role names
-   * @param roleNames - Array of role names
-   * @returns Array of role IDs
-   */
-  private async getRoleIds(roleNames: string[]): Promise<number[]> {
-    const roleIds: number[] = [];
-    
-    for (const roleName of roleNames) {
-      const roleId = await this.getRoleId(roleName);
-      if (roleId) {
-        roleIds.push(roleId);
-      }
-    }
-    
-    return roleIds;
   }
 }
+
+export default new UserController();

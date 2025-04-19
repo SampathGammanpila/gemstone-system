@@ -42,3 +42,4 @@ router.get('/:id', (req, res) => {
 });
 
 export const userManagementRoutes = router;
+export default router;

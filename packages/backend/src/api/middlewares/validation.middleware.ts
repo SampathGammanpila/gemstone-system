@@ -1,74 +1,120 @@
-// src/api/middlewares/validation.middleware.ts
 import { Request, Response, NextFunction } from 'express';
-import { validationResult, ValidationError, ValidationChain } from 'express-validator';
-import { AppError } from './error.middleware';
-
-interface FormattedError {
-  field: string;
-  message: string;
-}
+import { validationResult, ValidationChain } from 'express-validator';
 
 /**
- * Validate UUID parameter
- * @param param - Parameter name to validate
- * @returns Middleware function
+ * Validation middleware
+ * Uses express-validator to validate request data
+ * @param validations Array of validation chains
  */
-export const validateUUID = (param: string) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    const uuid = req.params[param];
+export const validate = (validations: ValidationChain[]) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // Run all validators
+    await Promise.all(validations.map(validation => validation.run(req)));
     
-    // Simple UUID v4 regex validation
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    // Check if there are validation errors
+    const errors = validationResult(req);
     
-    if (!uuid || !uuidRegex.test(uuid)) {
-      next(new AppError(400, `Invalid ${param} format. Must be a valid UUID.`));
+    if (errors.isEmpty()) {
+      // No errors, continue
+      next();
       return;
     }
+    
+    // Format errors for response
+    const formattedErrors = errors.array().map(error => {
+      // Handle different ValidationError structures
+      // For express-validator v7
+      if ('path' in error) {
+        return {
+          field: error.path,
+          message: error.msg
+        };
+      }
+      
+      // For older express-validator versions (fallback)
+      if ('param' in error) {
+        return {
+          field: error.param,
+          message: error.msg
+        };
+      }
+      
+      // Last resort fallback
+      return {
+        field: typeof error.type === 'string' ? error.type : 'unknown',
+        message: error.msg
+      };
+    });
+    
+    // Send validation error response
+    res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: formattedErrors,
+    });
+  };
+};
+
+/**
+ * Sanitize request data
+ * Removes unwanted fields from request body
+ * @param allowedFields Array of allowed field names
+ */
+export const sanitizeBody = (allowedFields: string[]) => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.body || typeof req.body !== 'object') {
+      // If no body or not an object, continue
+      next();
+      return;
+    }
+    
+    // Filter out unwanted fields
+    const sanitizedBody: Record<string, any> = {};
+    
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        sanitizedBody[field] = req.body[field];
+      }
+    }
+    
+    // Replace request body with sanitized version
+    req.body = sanitizedBody;
     
     next();
   };
 };
 
 /**
- * Middleware to validate request using express-validator
- * @param validations - Array of validation chains
- * @returns Middleware function
+ * Sanitize query parameters
+ * Removes unwanted fields from query params
+ * @param allowedParams Array of allowed parameter names
  */
-export const validate = (validations: ValidationChain[]) => {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    // Execute all validations
-    await Promise.all(validations.map(validation => validation.run(req)));
-    
-    // Check for validation errors
-    const errors = validationResult(req);
-    
-    if (!errors.isEmpty()) {
-      const formattedErrors: FormattedError[] = errors.array().map((error: ValidationError) => {
-        // Handle both ValidationError types
-        if ('path' in error) {
-          return {
-            field: error.path,
-            message: error.msg
-          };
-        } else {
-          // Handle legacy format or alternative format
-          return {
-            field: (error as any).param || error.type || 'unknown',
-            message: error.msg
-          };
-        }
-      });
-      
-      const errorResponse = {
-        status: 'error',
-        message: 'Validation failed',
-        errors: formattedErrors
-      };
-      
-      res.status(400).json(errorResponse);
+export const sanitizeQuery = (allowedParams: string[]) => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.query || typeof req.query !== 'object') {
+      // If no query params or not an object, continue
+      next();
       return;
     }
     
+    // Filter out unwanted parameters
+    const sanitizedQuery: Record<string, any> = {};
+    
+    for (const param of allowedParams) {
+      if (req.query[param] !== undefined) {
+        sanitizedQuery[param] = req.query[param];
+      }
+    }
+    
+    // Replace request query with sanitized version
+    req.query = sanitizedQuery;
+    
     next();
   };
+};
+
+export default {
+  validate,
+  sanitizeBody,
+  sanitizeQuery,
 };

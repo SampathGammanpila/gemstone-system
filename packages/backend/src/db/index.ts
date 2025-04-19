@@ -1,54 +1,84 @@
+import { Sequelize } from 'sequelize';
+import dotenv from 'dotenv';
 import knex from 'knex';
-import { Knex } from 'knex'; // Add this import for types
-import { config } from '../config/environment';
-import { logger } from '../utils/logger';
 
-// Import Knex configuration
-const knexConfig = require('../../knexfile');
+// Import models
+import { initUserModel } from './models/user.model';
+import { initRoleModel, initUserRolesModel } from './models/role.model';
+import { initPermissionModel, initRolePermissionsModel } from './models/permission.model';
+import { initVerificationModel, associateVerificationModel } from './models/verification.model';
+import { initGemstoneModel } from './models/gemstone.model'; 
+import { initJewelryModel, initJewelryGemstonesModel } from './models/jewelry.model';
 
-// Determine which configuration to use based on the environment
-const environment = config.nodeEnv;
-const knexConfiguration = knexConfig[environment];
+// Load environment variables
+dotenv.config();
 
-// Create database connection
-export const db = knex(knexConfiguration);
-
-// Initialize database connection
-export const initializeDatabase = async (): Promise<void> => {
-  try {
-    // Test the connection
-    const result = await db.raw('SELECT 1+1 AS result');
-    
-    if (result) {
-      logger.info(`Database connection established in ${environment} environment`);
-      
-      // Check if migrations are needed
-      try {
-        const pendingMigrations = await db.migrate.status();
-        if (pendingMigrations && typeof pendingMigrations === 'number' && pendingMigrations > 0) {
-          logger.info(`${pendingMigrations} pending migrations found`);
-        }
-      } catch (migrationError) {
-        logger.warn('Failed to check migration status:', migrationError);
-      }
-    }
-  } catch (error) {
-    logger.error('Error connecting to database:', error);
-    throw new Error('Database connection failed');
+// Create Sequelize instance
+export const sequelize = new Sequelize(
+  process.env.DB_NAME || 'gemstone_system',
+  process.env.DB_USER || 'postgres',
+  process.env.DB_PASSWORD || 'password',
+  {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    dialect: 'postgres',
+    logging: process.env.NODE_ENV !== 'production' ? console.log : false,
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000,
+    },
   }
+);
+
+// Create Knex instance
+export const db = knex({
+  client: 'pg',
+  connection: {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'password',
+    database: process.env.DB_NAME || 'gemstone_system',
+  },
+  pool: {
+    min: 0,
+    max: 7,
+  },
+});
+
+// Initialize models
+const User = initUserModel(sequelize);
+const Role = initRoleModel(sequelize);
+const Permission = initPermissionModel(sequelize);
+const Verification = initVerificationModel(sequelize);
+const Gemstone = initGemstoneModel(sequelize);
+const Jewelry = initJewelryModel(sequelize);
+
+// Setup associations
+initUserRolesModel(sequelize, User, Role);
+initRolePermissionsModel(sequelize, Role, Permission);
+associateVerificationModel(User, Verification);
+initJewelryGemstonesModel(sequelize, Jewelry, Gemstone);
+
+// Export models
+export const models = {
+  User,
+  Role,
+  Permission,
+  Verification,
+  Gemstone,
+  Jewelry
 };
 
-// Clean up database connection
-export const closeDatabase = async (): Promise<void> => {
+// Database synchronization function
+export const syncDatabase = async (force: boolean = false) => {
   try {
-    await db.destroy();
-    logger.info('Database connection closed');
+    await sequelize.sync({ force });
+    console.log('Database synchronized successfully.');
   } catch (error) {
-    logger.error('Error closing database connection:', error);
+    console.error('Error synchronizing database:', error);
+    throw error;
   }
-};
-
-// Export transaction helper function
-export const transaction = async <T>(callback: (trx: Knex.Transaction) => Promise<T>): Promise<T> => {
-  return db.transaction(callback);
 };

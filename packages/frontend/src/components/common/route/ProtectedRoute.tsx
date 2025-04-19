@@ -1,42 +1,49 @@
-import React from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from '@hooks/useAuth';
+import React, { useEffect } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import useAuth from '../../../hooks/useAuth';
 
 interface ProtectedRouteProps {
-  requiredRoles?: string[];
+  children: React.ReactNode;
+  redirectPath?: string;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  requiredRoles = [],
+/**
+ * A wrapper component that protects routes requiring authentication
+ */
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
+  children, 
+  redirectPath = '/auth/login'
 }) => {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, refreshAuth } = useAuth();
   const location = useLocation();
 
+  // Attempt to refresh authentication on component mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!isAuthenticated && !isLoading) {
+        await refreshAuth();
+      }
+    };
+
+    checkAuth();
+  }, [isAuthenticated, isLoading, refreshAuth]);
+
+  // Show loading state if authentication state is still being determined
   if (isLoading) {
-    // Show loading indicator while checking authentication
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-12 h-12 border-t-4 border-b-4 border-emerald-500 rounded-full animate-spin"></div>
       </div>
     );
   }
 
-  // If not authenticated, redirect to login
+  // Redirect to login if not authenticated
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to={redirectPath} state={{ from: location }} replace />;
   }
 
-  // Check if user has required roles (if any)
-  if (requiredRoles.length > 0) {
-    const userRoles = user?.roles || [];
-    const hasRequiredRole = requiredRoles.some(role => userRoles.includes(role));
-
-    if (!hasRequiredRole) {
-      // User doesn't have the required role
-      return <Navigate to="/dashboard" replace />;
-    }
-  }
-
-  // User is authenticated and has required roles
-  return <Outlet />;
+  // Render children if authenticated
+  return <>{children}</>;
 };
+
+export default ProtectedRoute;

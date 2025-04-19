@@ -1,312 +1,248 @@
-import bcrypt from 'bcrypt';
-import { UserRepository } from '../db/repositories/user.repository';
-import { AppError } from '../api/middlewares/error.middleware';
-import { config } from '../config/environment';
-import { logger } from '../utils/logger';
-import { User } from '../types/database-types';
-import { FileService } from './file.service';
+import userRepository from '../db/repositories/user.repository';
+import roleRepository from '../db/repositories/role.repository';
+import { sequelize } from '../db';
+import { QueryTypes } from 'sequelize';
+import { UserProfileUpdateRequest, UserStatus, UserWithRoles, UserPublicProfile } from '../types/user.types';
+import { PermissionCheck } from '../types/auth.types';
+
+// Change the db import to use sequelize directly
+// import { db } from '../db';
 
 export class UserService {
-  private userRepository: UserRepository;
-  private fileService: FileService;
-
-  constructor() {
-    this.userRepository = new UserRepository();
-    this.fileService = new FileService();
+  /**
+   * Get user by ID
+   */
+  async getUserById(id: number): Promise<UserWithRoles | null> {
+    return userRepository.findByIdWithRoles(id);
   }
 
   /**
-   * Find user by ID
-   * @param userId - User ID
-   * @returns User object
+   * Get user with permissions
    */
-  public async findById(userId: string): Promise<User | undefined> {
-    return this.userRepository.findById(userId);
+  async getUserWithPermissions(id: number) {
+    return userRepository.findByIdWithPermissions(id);
   }
 
   /**
-   * Find user by email
-   * @param email - User email
-   * @returns User object
+   * Update user profile
    */
-  public async findByEmail(email: string): Promise<User | undefined> {
-    return this.userRepository.findByEmail(email);
-  }
-
-  /**
-   * Get user with roles
-   * @param userId - User ID
-   * @returns User object with roles
-   */
-  public async getUserWithRoles(userId: string): Promise<{ user: User; roles: any[] } | null> {
-    return this.userRepository.getUserWithRoles(userId);
-  }
-
-  /**
-   * Get all users
-   * @param page - Page number
-   * @param limit - Users per page
-   * @param sort - Sort field
-   * @param order - Sort direction
-   * @param filter - Filter conditions
-   * @returns Users and total count
-   */
-  public async getAllUsers(
-    page: number = 1,
-    limit: number = 10,
-    sort: string = 'created_at',
-    order: 'asc' | 'desc' = 'desc',
-    filter: Partial<User> = {}
-  ): Promise<{ users: User[]; total: number }> {
-    return this.userRepository.findUsers(page, limit, sort, order, filter);
-  }
-
-  /**
-   * Create a new user
-   * @param userData - User data
-   * @param roleIds - Role IDs to assign
-   * @returns Created user
-   */
-  public async createUser(userData: Partial<User>, roleIds: number[] = [1]): Promise<User> {
-    try {
-      // Check if email already exists
-      const existingUser = await this.userRepository.findByEmail(userData.email as string);
-      
-      if (existingUser) {
-        throw new AppError(409, 'User with this email already exists');
-      }
-      
-      // Hash password if provided
-      if (userData.password) {
-        userData.password = await bcrypt.hash(userData.password, config.bcryptSaltRounds);
-      }
-      
-      // Create user with roles
-      const user = await this.userRepository.createUserWithRoles(userData, roleIds);
-      
-      return user;
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Failed to create user', error);
-      throw new AppError(500, 'Failed to create user');
+  async updateUserProfile(id: number, profileData: UserProfileUpdateRequest): Promise<UserWithRoles | null> {
+    const [updated, users] = await userRepository.updateProfile(id, profileData);
+    
+    if (updated === 0 || users.length === 0) {
+      return null;
     }
+    
+    return userRepository.findByIdWithRoles(id);
   }
 
   /**
-   * Update user
-   * @param userId - User ID
-   * @param userData - Updated user data
-   * @returns Updated user
+   * Update user status
    */
-  public async updateUser(userId: string, userData: Partial<User>): Promise<User | undefined> {
-    try {
-      // Check if user exists
-      const existingUser = await this.userRepository.findById(userId);
-      
-      if (!existingUser) {
-        throw new AppError(404, 'User not found');
-      }
-      
-      // Check if email is being changed and already exists
-      if (userData.email && userData.email !== existingUser.email) {
-        const emailExists = await this.userRepository.findByEmail(userData.email);
-        
-        if (emailExists) {
-          throw new AppError(409, 'Email already in use');
-        }
-      }
-      
-      // Hash password if provided
-      if (userData.password) {
-        userData.password = await bcrypt.hash(userData.password, config.bcryptSaltRounds);
-      }
-      
-      // Update user
-      const updatedUser = await this.userRepository.update(userId, userData);
-      
-      return updatedUser;
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Failed to update user', error);
-      throw new AppError(500, 'Failed to update user');
-    }
+  async updateUserStatus(id: number, status: UserStatus): Promise<boolean> {
+    const [updated] = await userRepository.updateStatus(id, status);
+    return updated > 0;
   }
 
   /**
-   * Delete user
-   * @param userId - User ID
-   * @returns True if deleted
+   * Get users with pagination
    */
-  public async deleteUser(userId: string): Promise<boolean> {
-    try {
-      // Check if user exists
-      const existingUser = await this.userRepository.findById(userId);
-      
-      if (!existingUser) {
-        throw new AppError(404, 'User not found');
-      }
-      
-      // Delete user
-      const result = await this.userRepository.delete(userId);
-      
-      return result > 0;
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Failed to delete user', error);
-      throw new AppError(500, 'Failed to delete user');
-    }
-  }
-
-  /**
-   * Upload profile image
-   * @param userId - User ID
-   * @param file - Uploaded file
-   * @returns Updated user
-   */
-  public async uploadProfileImage(userId: string, file: Express.Multer.File): Promise<User | undefined> {
-    try {
-      // Check if user exists
-      const existingUser = await this.userRepository.findById(userId);
-      
-      if (!existingUser) {
-        throw new AppError(404, 'User not found');
-      }
-      
-      // Delete old profile image if exists
-      if (existingUser.profile_image_url) {
-        await this.fileService.deleteFile(existingUser.profile_image_url);
-      }
-      
-      // Upload new image
-      const imagePath = await this.fileService.saveFile(file, 'users');
-      
-      // Update user
-      const updatedUser = await this.userRepository.update(userId, {
-        profile_image_url: imagePath
-      });
-      
-      return updatedUser;
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Failed to upload profile image', error);
-      throw new AppError(500, 'Failed to upload profile image');
-    }
+  async getUsers(page: number = 1, limit: number = 20): Promise<{ users: UserPublicProfile[]; total: number }> {
+    const { users, total } = await userRepository.findAll(page, limit);
+    
+    // Map to public profiles
+    const publicProfiles = await Promise.all(users.map(async (user) => {
+      const userWithRoles = await userRepository.findByIdWithRoles(user.id);
+      return {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImage: user.profileImage,
+        roles: userWithRoles?.roles?.map(role => role.name) || [],
+        createdAt: user.createdAt,
+      };
+    }));
+    
+    return {
+      users: publicProfiles,
+      total,
+    };
   }
 
   /**
    * Add role to user
-   * @param userId - User ID
-   * @param roleId - Role ID
    */
-  public async addRoleToUser(userId: string, roleId: number): Promise<void> {
+  async addUserRole(userId: number, roleName: string): Promise<boolean> {
+    // Find role by name
+    const role = await roleRepository.findByName(roleName);
+    if (!role) {
+      throw new Error(`Role ${roleName} not found`);
+    }
+    
+    // Add role to user
+    const transaction = await sequelize.transaction();
+    
     try {
-      // Check if user exists
-      const existingUser = await this.userRepository.findById(userId);
-      
-      if (!existingUser) {
-        throw new AppError(404, 'User not found');
-      }
-      
-      // Add role to user
-      await this.userRepository.addRoleToUser(userId, roleId);
+      await userRepository.addRole(userId, role.id, transaction);
+      await transaction.commit();
+      return true;
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Failed to add role to user', error);
-      throw new AppError(500, 'Failed to add role to user');
+      await transaction.rollback();
+      throw error;
     }
   }
 
   /**
    * Remove role from user
-   * @param userId - User ID
-   * @param roleId - Role ID
-   * @returns True if removed
    */
-  public async removeRoleFromUser(userId: string, roleId: number): Promise<boolean> {
-    try {
-      // Check if user exists
-      const existingUser = await this.userRepository.findById(userId);
-      
-      if (!existingUser) {
-        throw new AppError(404, 'User not found');
-      }
-      
-      // Remove role from user
-      const result = await this.userRepository.removeRoleFromUser(userId, roleId);
-      
-      return result > 0;
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Failed to remove role from user', error);
-      throw new AppError(500, 'Failed to remove role from user');
+  async removeUserRole(userId: number, roleName: string): Promise<boolean> {
+    // Find role by name
+    const role = await roleRepository.findByName(roleName);
+    if (!role) {
+      throw new Error(`Role ${roleName} not found`);
     }
+    
+    // Remove role from user
+    const transaction = await sequelize.transaction();
+    
+    try {
+      await userRepository.removeRole(userId, role.id, transaction);
+      await transaction.commit();
+      return true;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  /**
+   * Check if user has permission
+   */
+  async hasPermission(userId: number, check: PermissionCheck): Promise<boolean> {
+    const userWithPermissions = await userRepository.findByIdWithPermissions(userId);
+    
+    if (!userWithPermissions || !userWithPermissions.roles || userWithPermissions.roles.length === 0) {
+      return false;
+    }
+    
+    // Check if the user has admin role (which grants all permissions)
+    const isAdmin = userWithPermissions.roles.some(role => role.name === 'admin');
+    if (isAdmin) {
+      return true;
+    }
+    
+    // Check specific permissions
+    for (const role of userWithPermissions.roles) {
+      // Skip roles without permissions
+      if (!role.permissions || !Array.isArray(role.permissions)) continue;
+      
+      const hasPermission = role.permissions.some((permission: any) => 
+        permission.resource === check.resource && permission.action === check.action
+      );
+      
+      if (hasPermission) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   /**
    * Check if user has role
-   * @param userId - User ID
-   * @param roleName - Role name
-   * @returns True if user has role
    */
-  public async hasRole(userId: string, roleName: string): Promise<boolean> {
-    return this.userRepository.hasRole(userId, roleName);
-  }
-
-  /**
-   * Get user permissions
-   * @param userId - User ID
-   * @returns Array of permission names
-   */
-  public async getUserPermissions(userId: string): Promise<string[]> {
-    return this.userRepository.getUserPermissions(userId);
-  }
-
-  /**
-   * Activate or deactivate user
-   * @param userId - User ID
-   * @param isActive - Activation status
-   * @returns Updated user
-   */
-  public async setUserActiveStatus(userId: string, isActive: boolean): Promise<User | undefined> {
-    try {
-      // Check if user exists
-      const existingUser = await this.userRepository.findById(userId);
-      
-      if (!existingUser) {
-        throw new AppError(404, 'User not found');
-      }
-      
-      // Update user
-      const updatedUser = await this.userRepository.update(userId, {
-        is_active: isActive
-      });
-      
-      return updatedUser;
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('Failed to update user active status', error);
-      throw new AppError(500, 'Failed to update user active status');
+  async hasRole(userId: number, roleName: string): Promise<boolean> {
+    const userWithRoles = await userRepository.findByIdWithRoles(userId);
+    
+    if (!userWithRoles || !userWithRoles.roles || userWithRoles.roles.length === 0) {
+      return false;
     }
+    
+    return userWithRoles.roles.some(role => role.name === roleName);
+  }
+
+  /**
+   * Delete user
+   */
+  async deleteUser(id: number): Promise<boolean> {
+    const deleted = await userRepository.deleteUser(id);
+    return deleted > 0;
+  }
+
+  /**
+   * Get total users count
+   */
+  async getTotalUsersCount(): Promise<number> {
+    const result = await sequelize.query(
+      'SELECT COUNT(id) as count FROM users',
+      { type: QueryTypes.SELECT }
+    ) as Array<{ count: string | number }>;
+    
+    return result[0]?.count ? Number(result[0].count) : 0;
+  }
+
+  /**
+   * Get recent user statistics for the last X days
+   * @param days Number of days to look back
+   */
+  async getRecentUserStats(days: number): Promise<any> {
+    const dateLimit = new Date();
+    dateLimit.setDate(dateLimit.getDate() - days);
+
+    const [newUsersResult] = await sequelize.query(
+      'SELECT COUNT(id) as count FROM users WHERE created_at >= :dateLimit',
+      { 
+        replacements: { dateLimit },
+        type: QueryTypes.SELECT 
+      }
+    ) as Array<{ count: string | number }>;
+
+    const [activeUsersResult] = await sequelize.query(
+      'SELECT COUNT(id) as count FROM users WHERE last_login_at >= :dateLimit',
+      { 
+        replacements: { dateLimit },
+        type: QueryTypes.SELECT 
+      }
+    ) as Array<{ count: string | number }>;
+
+    return {
+      newUsers: newUsersResult?.count ? Number(newUsersResult.count) : 0,
+      activeUsers: activeUsersResult?.count ? Number(activeUsersResult.count) : 0,
+      period: days
+    };
+  }
+
+  /**
+   * Find a user by ID
+   * @param userId User ID
+   */
+  async findById(userId: number): Promise<any> {
+    const [user] = await sequelize.query(
+      'SELECT * FROM users WHERE id = :userId LIMIT 1',
+      { 
+        replacements: { userId },
+        type: QueryTypes.SELECT 
+      }
+    ) as Array<any>;
+    
+    return user;
+  }
+
+  /**
+   * Find a user by email
+   * @param email User email
+   */
+  async findByEmail(email: string): Promise<any> {
+    const [user] = await sequelize.query(
+      'SELECT * FROM users WHERE email = :email LIMIT 1',
+      { 
+        replacements: { email },
+        type: QueryTypes.SELECT 
+      }
+    ) as Array<any>;
+    
+    return user;
   }
 }
+
+export default new UserService();

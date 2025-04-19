@@ -1,0 +1,130 @@
+<header class="bg-white shadow">
+    <div class="flex justify-between items-center px-6 py-4">
+      <!-- Mobile menu button -->
+      <button id="mobile-menu-button" class="md:hidden text-gray-500 hover:text-gray-700 focus:outline-none">
+        <i class="fas fa-bars text-xl"></i>
+      </button>
+      
+      <!-- Title -->
+      <h1 class="text-xl font-semibold text-gray-800"><%= title %></h1>
+      
+      <!-- User dropdown -->
+      <div class="relative">
+        <button id="user-menu-button" class="flex items-center space-x-2 focus:outline-none">
+          <div class="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white">
+            <%= locals.adminUser.firstName.charAt(0) %><%= locals.adminUser.lastName.charAt(0) %>
+          </div>
+          <span class="hidden md:inline-block text-gray-700"><%= locals.adminUser.firstName %> <%= locals.adminUser.lastName %></span>
+          <i class="fas fa-chevron-down text-gray-500"></i>
+        </button>
+        
+        <!-- Dropdown menu -->
+        <div id="user-dropdown" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden z-10">
+          <a href="/admin/auth/change-password" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+            <i class="fas fa-key mr-2"></i> Change Password
+          </a>
+          <a href="/admin/auth/setup-mfa" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+            <i class="fas fa-shield-alt mr-2"></i> Setup MFA
+          </a>
+          <div class="border-t border-gray-100"></div>
+          <a href="/admin/auth/logout" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+            <i class="fas fa-sign-out-alt mr-2"></i> Logout
+          </a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Breadcrumbs -->
+    <div class="px-6 py-2 bg-gray-50 border-t border-gray-100">
+      <nav class="flex" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+          <li class="inline-flex items-center">
+            <a href="/admin/dashboard" class="text-gray-500 hover:text-primary-600">
+              <i class="fas fa-home"></i>
+            </a>
+          </li>
+          
+          <!-- Generate breadcrumbs based on URL -->
+          <% 
+          const path = locals.originalUrl || '';
+          const segments = path.split('/').filter(Boolean);
+          let currentPath = '';
+          
+          // Remove 'admin' from beginning if present
+          if (segments[0] === 'admin') {
+            segments.shift();
+          }
+          
+          segments.forEach((segment, index) => {
+            currentPath += `/${segment}`;
+            const isLast = index === segments.length - 1;
+          %>
+            <li>
+              <div class="flex items-center">
+                <i class="fas fa-chevron-right text-gray-400 mx-1"></i>
+                <% if (isLast) { %>
+                  <span class="text-gray-500 ml-1 md:ml-2 text-sm font-medium"><%= segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ') %></span>
+                <% } else { %>
+                  <a href="/admin<%= currentPath %>" class="text-primary-600 hover:text-primary-700 ml-1 md:ml-2 text-sm font-medium">
+                    <%= segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ') %>
+                  </a>
+                <% } %>
+              </div>
+            </li>
+          <% }); %>
+        </ol>
+      </nav>
+    </div>
+  </header>
+  
+  <!-- Mobile sidebar -->
+  <div id="mobile-sidebar" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden">
+    <div class="bg-primary-800 text-white w-64 min-h-screen overflow-y-auto">
+      <div class="p-6 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+          <i class="fas fa-gem text-2xl"></i>
+          <h1 class="text-xl font-bold">Gemstone Admin</h1>
+        </div>
+        <button id="close-sidebar" class="text-white">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+      
+      <!-- Include sidebar content -->
+      <%- include('./sidebar') %>
+    </div>
+  </div>
+  
+  <script>
+    // User dropdown toggle
+    document.getElementById('user-menu-button').addEventListener('click', function() {
+      document.getElementById('user-dropdown').classList.toggle('hidden');
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+      const dropdown = document.getElementById('user-dropdown');
+      const button = document.getElementById('user-menu-button');
+      
+      if (!dropdown.contains(event.target) && !button.contains(event.target)) {
+        dropdown.classList.add('hidden');
+      }
+    });
+    
+    // Mobile sidebar toggle
+    document.getElementById('mobile-menu-button').addEventListener('click', function() {
+      document.getElementById('mobile-sidebar').classList.remove('hidden');
+    });
+    
+    // Close mobile sidebar
+    document.getElementById('close-sidebar').addEventListener('click', function() {
+      document.getElementById('mobile-sidebar').classList.add('hidden');
+    });
+    
+    // Close mobile sidebar when clicking outside
+    document.getElementById('mobile-sidebar').addEventListener('click', function(event) {
+      if (event.target === this) {
+        this.classList.add('hidden');
+      }
+    });
+  </script>

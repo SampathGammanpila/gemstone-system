@@ -2,69 +2,68 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import path from 'path';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
-import { config } from './config/environment';
-import { errorHandler } from './api/middlewares/error.middleware';
-import { apiRoutes } from './api/routes';
-import { adminRoutes } from './admin/routes';
-import { initializeDatabase } from './db';
-import { logger } from './utils/logger';
+import rateLimit from 'express-rate-limit';
+import { json, urlencoded } from 'body-parser';
 
-export const createServer = async (): Promise<Application> => {
-  const app: Application = express();
+import apiRoutes from './api/routes';
+import adminRoutes from './admin/routes';
+import { errorHandler, notFoundHandler } from './api/middlewares/error.middleware';
+import config from './config/auth';
 
-  // Initialize database connection
-  try {
-    await initializeDatabase();
-  } catch (err) {
-    logger.error('Failed to initialize database connection', err);
-    process.exit(1);
-  }
+export const createServer = (): Application => {
+  const app = express();
 
-  // Basic middleware setup
-  app.use(helmet()); // Security headers
-  app.use(compression()); // Compress responses
-  app.use(morgan(config.nodeEnv === 'production' ? 'combined' : 'dev', {
-    stream: {
-      write: (message: string) => logger.http(message.trim())
-    }
-  })); // HTTP request logging
-  
-  // CORS configuration
+  // Security middleware
+  app.use(helmet());
   app.use(cors({
-    origin: config.corsOrigin,
+    origin: config.security.cors.allowedOrigins.includes('*') 
+      ? '*' 
+      : config.security.cors.allowedOrigins,
+    methods: config.security.cors.allowedMethods,
+    allowedHeaders: config.security.cors.allowedHeaders,
+    exposedHeaders: config.security.cors.exposedHeaders,
+    maxAge: config.security.cors.maxAge,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization']
   }));
-  
-  // Parse request body
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+  // Apply rate limiting
+  app.use(rateLimit({
+    windowMs: config.security.rateLimiting.windowMs,
+    max: config.security.rateLimiting.max,
+    standardHeaders: config.security.rateLimiting.standardHeaders,
+    legacyHeaders: config.security.rateLimiting.legacyHeaders,
+  }));
+
+  // Parsing middleware
+  app.use(json());
+  app.use(urlencoded({ extended: true }));
   app.use(cookieParser());
-  
+
+  // Compression and logging
+  app.use(compression());
+  app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
   // Static files
-  app.use(express.static(path.join(__dirname, '../public')));
+  app.use(express.static('public'));
   
-  // API routes
+  // Set view engine for admin panel
+  app.set('view engine', 'ejs');
+  app.set('views', './src/admin/views');
+
+  // Routes
   app.use('/api', apiRoutes);
-  
-  // Admin panel routes
   app.use('/admin', adminRoutes);
-  
+
   // Health check endpoint
-  app.get('/health', (req, res) => {
-    res.status(200).json({
-      status: 'UP',
-      timestamp: new Date().toISOString(),
-      environment: config.nodeEnv
-    });
+  app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
   });
-  
-  // Error handling middleware (should be last)
+
+  // Error handling
+  app.use(notFoundHandler);
   app.use(errorHandler);
-  
+
   return app;
 };

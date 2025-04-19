@@ -42,3 +42,4 @@ router.get('/:id/documents', (req, res) => {
 });
 
 export const professionalManagementRoutes = router;
+export default router;

@@ -9,27 +9,31 @@ import { Home } from "@pages/Home";
 import { Login } from "@pages/Auth/Login";
 import { Register } from "@pages/Auth/Register";
 import { ProfessionalRegister } from "@pages/Auth/ProfessionalRegister";
+import { ForgotPassword } from "@pages/Auth/ForgotPassword";
+import { ResetPassword } from "@pages/Auth/ResetPassword";
+import { VerifyEmail } from "@pages/Auth/VerifyEmail";
 
-// Protected route wrapper
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
-  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
-  
-  if (!isAuthenticated) {
-    // Redirect to login if not authenticated
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
-};
+// Auth components
+import ProtectedRoute from "@components/common/route/ProtectedRoute";
 
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
       {/* Public routes */}
       <Route path="/" element={<Home />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/professional-register" element={<ProfessionalRegister />} />
+      
+      {/* Authentication routes */}
+      <Route path="/auth/login" element={<Login />} />
+      <Route path="/auth/register" element={<Register />} />
+      <Route path="/auth/professional-register" element={<ProfessionalRegister />} />
+      <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+      <Route path="/auth/reset-password/:token" element={<ResetPassword />} />
+      <Route path="/auth/verify-email/:token" element={<VerifyEmail />} />
+      
+      {/* Legacy authentication routes (for backward compatibility) */}
+      <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+      <Route path="/register" element={<Navigate to="/auth/register" replace />} />
+      <Route path="/professional-register" element={<Navigate to="/auth/professional-register" replace />} />
       
       {/* Protected routes */}
       <Route 
@@ -41,6 +45,22 @@ export const AppRoutes: React.FC = () => {
                 <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
                 <p className="text-gray-700">This is a placeholder for the dashboard.</p>
                 <p className="text-gray-700 mt-2">More functionality will be added in future development phases.</p>
+              </div>
+            </UserLayout>
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* User profile routes */}
+      <Route 
+        path="/profile" 
+        element={
+          <ProtectedRoute>
+            <UserLayout>
+              <div className="p-4">
+                <h1 className="text-2xl font-bold mb-4">User Profile</h1>
+                <p className="text-gray-700">This is a placeholder for the user profile.</p>
+                <p className="text-gray-700 mt-2">Profile management will be fully implemented in upcoming phases.</p>
               </div>
             </UserLayout>
           </ProtectedRoute>
@@ -106,7 +126,7 @@ export const AppRoutes: React.FC = () => {
                   </div>
                   
                   <div className="flex items-center justify-center">
-                    <Link to="/login" className="text-indigo-600 hover:text-indigo-500">
+                    <Link to="/auth/login" className="text-emerald-600 hover:text-emerald-500">
                       Return to login
                     </Link>
                   </div>
@@ -129,7 +149,7 @@ export const AppRoutes: React.FC = () => {
                   The page you are looking for doesn't exist or has been moved.
                 </p>
                 <div className="mt-8">
-                  <Link to="/" className="text-indigo-600 hover:text-indigo-500">
+                  <Link to="/" className="text-emerald-600 hover:text-emerald-500">
                     Go back to the homepage
                   </Link>
                 </div>

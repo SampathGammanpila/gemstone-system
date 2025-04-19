@@ -22,7 +22,17 @@ export const validate = (validations: ValidationChain[]) => {
     
     // Format error message
     const errorMessages = errors.array().map(error => {
-      return `${error.param}: ${error.msg}`;
+      // Handle different ValidationError structures
+      if ('path' in error) {
+        // For express-validator v7+
+        return `${error.path}: ${error.msg}`;
+      } else if ('param' in error) {
+        // For older express-validator versions
+        return `${error.param}: ${error.msg}`;
+      } else {
+        // Fallback
+        return error.msg;
+      }
     });
     
     // Flash error to user and redirect back

@@ -1,6 +1,11 @@
+// src/db/index.ts
 import { Sequelize } from 'sequelize';
-import dotenv from 'dotenv';
 import knex from 'knex';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment variables
+dotenv.config({ path: path.resolve(process.cwd(), `.env.${process.env.NODE_ENV || 'development'}`) });
 
 // Import models
 import { initUserModel } from './models/user.model';
@@ -10,17 +15,32 @@ import { initVerificationModel, associateVerificationModel } from './models/veri
 import { initGemstoneModel } from './models/gemstone.model'; 
 import { initJewelryModel, initJewelryGemstonesModel } from './models/jewelry.model';
 
-// Load environment variables
-dotenv.config();
+// Get database configuration from environment variables
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  database: process.env.DB_NAME || 'gemstone_dev',
+  username: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'vikum5723',
+};
+
+console.log('Database Config:', {
+  host: dbConfig.host,
+  port: dbConfig.port,
+  database: dbConfig.database,
+  username: dbConfig.username,
+  // Don't log password for security reasons
+  password: dbConfig.password ? '********' : 'not set'
+});
 
 // Create Sequelize instance
 export const sequelize = new Sequelize(
-  process.env.DB_NAME || 'gemstone_system',
-  process.env.DB_USER || 'postgres',
-  process.env.DB_PASSWORD || 'password',
+  dbConfig.database,
+  dbConfig.username,
+  dbConfig.password,
   {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
+    host: dbConfig.host,
+    port: dbConfig.port,
     dialect: 'postgres',
     logging: process.env.NODE_ENV !== 'production' ? console.log : false,
     pool: {
@@ -36,11 +56,11 @@ export const sequelize = new Sequelize(
 export const db = knex({
   client: 'pg',
   connection: {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'password',
-    database: process.env.DB_NAME || 'gemstone_system',
+    host: dbConfig.host,
+    port: dbConfig.port,
+    user: dbConfig.username,
+    password: dbConfig.password,
+    database: dbConfig.database,
   },
   pool: {
     min: 0,
@@ -80,5 +100,17 @@ export const syncDatabase = async (force: boolean = false) => {
   } catch (error) {
     console.error('Error synchronizing database:', error);
     throw error;
+  }
+};
+
+// Initialize database connection
+export const initializeDatabase = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('Database connection has been established successfully.');
+    return true;
+  } catch (error) {
+    console.error('Unable to connect to the database:', error);
+    return false;
   }
 };

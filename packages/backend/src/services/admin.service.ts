@@ -1,8 +1,9 @@
 import { sequelize } from '../db';
 import { User } from '../db/models/user.model';
 import { Role } from '../db/models/role.model';
-import { UserRole } from '../types/user.types';
+import { UserRole, UserStatus } from '../types/user.types';
 import { hashPassword } from '../utils/encryption';
+import { QueryTypes } from 'sequelize';
 
 interface AdminUser {
   id: string; // Changed from number to string
@@ -129,15 +130,22 @@ export class AdminService {
    */
   async enableMfa(id: string, secret: string): Promise<boolean> {
     try {
-      const [updated] = await User.update(
-        {
-          mfaEnabled: true,
-          mfaSecret: secret,
-        },
-        { where: { id } }
-      );
+      // Use raw query for fields not in the model
+      const query = `
+        UPDATE users 
+        SET 
+          mfa_enabled = true,
+          mfa_secret = :secret,
+          updated_at = NOW()
+        WHERE id = :id
+      `;
       
-      return updated > 0;
+      const result = await sequelize.query(query, {
+        replacements: { id, secret },
+        type: QueryTypes.UPDATE
+      });
+      
+      return Array.isArray(result) && result.length > 0 && typeof result[0] === 'number' && result[0] > 0;
     } catch (error) {
       console.error('Error enabling MFA for admin:', error);
       throw error;
@@ -149,15 +157,22 @@ export class AdminService {
    */
   async disableMfa(id: string): Promise<boolean> {
     try {
-      const [updated] = await User.update(
-        {
-          mfaEnabled: false,
-          mfaSecret: null,
-        },
-        { where: { id } }
-      );
+      // Use raw query for fields not in the model
+      const query = `
+        UPDATE users 
+        SET 
+          mfa_enabled = false,
+          mfa_secret = NULL,
+          updated_at = NOW()
+        WHERE id = :id
+      `;
       
-      return updated > 0;
+      const result = await sequelize.query(query, {
+        replacements: { id },
+        type: QueryTypes.UPDATE
+      });
+      
+      return Array.isArray(result) && result.length > 0 && typeof result[0] === 'number' && result[0] > 0;
     } catch (error) {
       console.error('Error disabling MFA for admin:', error);
       throw error;
@@ -186,7 +201,7 @@ export class AdminService {
           firstName: adminData.firstName,
           lastName: adminData.lastName,
           isEmailVerified: true,
-          status: 'active',
+          status: UserStatus.ACTIVE,
         },
         { transaction }
       );
@@ -220,26 +235,36 @@ export class AdminService {
    */
   async getActivityLog(page: number = 1, limit: number = 20): Promise<{ logs: any[]; total: number }> {
     try {
-      // Import audit model only when needed
-      const { default: Audit } = await import('../db/models/audit.model');
+      // Use raw query for audit logs
+      const query = `
+        SELECT a.*, 
+               u.email, u.first_name, u.last_name 
+        FROM audit_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        ORDER BY a.created_at DESC
+        LIMIT :limit OFFSET :offset
+      `;
+      
+      const countQuery = `
+        SELECT COUNT(*) as count FROM audit_logs
+      `;
       
       const offset = (page - 1) * limit;
       
-      const { count, rows } = await Audit.findAndCountAll({
-        limit,
-        offset,
-        order: [['createdAt', 'DESC']],
-        include: [
-          {
-            model: User,
-            attributes: ['id', 'email', 'firstName', 'lastName'],
-          },
-        ],
+      const [logs] = await sequelize.query(query, {
+        replacements: { limit, offset },
+        type: QueryTypes.SELECT
       });
       
+      const [countResult] = await sequelize.query(countQuery, {
+        type: QueryTypes.SELECT
+      }) as [{ count: string }];
+      
+      const total = Number(countResult?.count || 0);
+      
       return {
-        logs: rows,
-        total: count,
+        logs: Array.isArray(logs) ? logs : [logs],
+        total
       };
     } catch (error) {
       console.error('Error getting activity log:', error);
@@ -281,7 +306,7 @@ export class AdminService {
         WHERE "createdAt" >= NOW() - INTERVAL '${interval}'
         GROUP BY date
         ORDER BY date
-      `, { type: sequelize.QueryTypes.SELECT });
+      `, { type: QueryTypes.SELECT });
       
       // Get gemstone registration statistics
       const gemstoneStats = await sequelize.query(`
@@ -292,7 +317,7 @@ export class AdminService {
         WHERE "createdAt" >= NOW() - INTERVAL '${interval}'
         GROUP BY date
         ORDER BY date
-      `, { type: sequelize.QueryTypes.SELECT });
+      `, { type: QueryTypes.SELECT });
       
       // Get order statistics
       const orderStats = await sequelize.query(`
@@ -304,7 +329,7 @@ export class AdminService {
         WHERE "createdAt" >= NOW() - INTERVAL '${interval}'
         GROUP BY date
         ORDER BY date
-      `, { type: sequelize.QueryTypes.SELECT });
+      `, { type: QueryTypes.SELECT });
       
       return {
         userStats,

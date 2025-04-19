@@ -52,7 +52,7 @@ export class AuthController {
       // Check if MFA is enabled
       if (adminUser.mfaEnabled) {
         // Store user info in session for MFA verification
-        req.session.pendingMfaUser = {
+        (req.session as any).pendingMfaUser = {
           id: adminUser.id,
           email: adminUser.email,
         };
@@ -173,7 +173,7 @@ export class AuthController {
       });
       
       // Store temporary secret in session
-      req.session.tempMfaSecret = secret.base32;
+      (req.session as any).tempMfaSecret = secret.base32;
       
       // Generate QR code
       const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url || '');
@@ -197,14 +197,14 @@ export class AuthController {
    */
   async setupMfa(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.session || !req.session.adminUser || !req.session.tempMfaSecret) {
+      if (!req.session || !req.session.adminUser || !(req.session as any).tempMfaSecret) {
         res.redirect('/admin/auth/login');
         return;
       }
       
       const { token } = req.body;
       const adminId = req.session.adminUser.id;
-      const secret = req.session.tempMfaSecret;
+      const secret = (req.session as any).tempMfaSecret;
       
       // Verify token
       const verified = speakeasy.totp.verify({
@@ -223,7 +223,7 @@ export class AuthController {
       await adminService.enableMfa(adminId, secret);
       
       // Clean up session
-      delete req.session.tempMfaSecret;
+      delete (req.session as any).tempMfaSecret;
       
       req.flash('success', 'MFA enabled successfully');
       res.redirect('/admin/dashboard');
@@ -238,7 +238,7 @@ export class AuthController {
    * Show MFA verification page
    */
   async showVerifyMfaPage(req: Request, res: Response): Promise<void> {
-    if (!req.session || !req.session.pendingMfaUser) {
+    if (!req.session || !(req.session as any).pendingMfaUser) {
       res.redirect('/admin/auth/login');
       return;
     }
@@ -254,13 +254,13 @@ export class AuthController {
    */
   async verifyMfa(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.session || !req.session.pendingMfaUser) {
+      if (!req.session || !(req.session as any).pendingMfaUser) {
         res.redirect('/admin/auth/login');
         return;
       }
       
       const { token } = req.body;
-      const adminId = req.session.pendingMfaUser.id;
+      const adminId = (req.session as any).pendingMfaUser.id;
       
       // Find admin user
       const adminUser = await adminService.findAdminById(adminId);
@@ -293,7 +293,7 @@ export class AuthController {
       };
       
       // Clean up pending MFA user
-      delete req.session.pendingMfaUser;
+      delete (req.session as any).pendingMfaUser;
       
       // Update last login
       await adminService.updateLastLogin(adminUser.id);

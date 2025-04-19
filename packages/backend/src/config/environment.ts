@@ -25,11 +25,14 @@ interface Config {
   };
 }
 
+// Hard-coded database URL for development
+const hardcodedDbUrl = 'postgres://postgres:vikum5723@localhost:5432/gemstone_dev';
+
 // Create and export configuration object
 export const config: Config = {
   nodeEnv,
   port: parseInt(process.env.PORT || '3000', 10),
-  databaseUrl: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/gemstone_dev',
+  databaseUrl: nodeEnv === 'development' ? hardcodedDbUrl : process.env.DATABASE_URL || hardcodedDbUrl,
   jwtSecret: process.env.JWT_SECRET || 'dev_secret_key',
   jwtExpiry: process.env.JWT_EXPIRY || '24h',
   corsOrigin: process.env.CORS_ORIGIN 
@@ -68,3 +71,5 @@ const validateConfig = () => {
 
 // Run validation
 validateConfig();
+
+console.log('Database URL:', config.databaseUrl);

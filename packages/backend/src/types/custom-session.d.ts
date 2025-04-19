@@ -1,8 +1,9 @@
-// Type definitions for express-session
+// src/types/custom-session.d.ts
+
 import 'express-session';
 
 declare module 'express-session' {
-  interface SessionData {
+  interface Session {
     adminUser?: {
       id: string;
       email: string;

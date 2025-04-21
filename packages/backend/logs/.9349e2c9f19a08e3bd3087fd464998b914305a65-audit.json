@@ -1,0 +1,20 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\gemprojects\\gem-new\\Backup\\gemstone-system\\packages\\backend\\logs\\.9349e2c9f19a08e3bd3087fd464998b914305a65-audit.json",
+    "files": [
+        {
+            "date": 1745074080291,
+            "name": "C:\\gemprojects\\gem-new\\Backup\\gemstone-system\\packages\\backend\\logs\\2025-04-19-app.log",
+            "hash": "921d815721f1d4a8734c4c22ea3b6c6ecbeb4cdfb7c628a4906465c5f22a0b6f"
+        },
+        {
+            "date": 1745215024923,
+            "name": "C:\\gemprojects\\gem-new\\Backup\\gemstone-system\\packages\\backend\\logs\\2025-04-21-app.log",
+            "hash": "c77fcde5992f946252a9ed070288f37b90203269bcfe7de68f4c56ccc486682c"
+        }
+    ],
+    "hashType": "sha256"
+}
